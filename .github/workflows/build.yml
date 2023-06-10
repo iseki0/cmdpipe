@@ -28,5 +28,5 @@ jobs:
         with:
           arguments: build
 
-      - name: Run snapshot action
-        uses: mikepenz/gradle-dependency-submission@v0.8.6
+#      - name: Run snapshot action
+#        uses: mikepenz/gradle-dependency-submission@v0.8.6
