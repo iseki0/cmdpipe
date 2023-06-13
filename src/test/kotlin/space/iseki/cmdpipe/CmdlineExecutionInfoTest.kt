@@ -9,7 +9,7 @@ class CmdlineExecutionInfoTest{
     fun test(){
         val info = CmdlineExecutionInfo(
             cmdline = listOf("foo", "bar"),
-            environments = mapOf("a" to "1", "b" to null, "c" to "这是个\n多行文本"),
+            environments = listOf("a" to "1", "b" to null, "c" to "这是个\n多行文本"),
             workingDirectory = File("/test"),
             startAt = 1,
             endAt = 1000,
@@ -19,3 +19,4 @@ class CmdlineExecutionInfoTest{
         println(info.generateMessage())
     }
 }
+
