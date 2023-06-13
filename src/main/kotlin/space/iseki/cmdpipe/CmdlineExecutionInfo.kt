@@ -9,15 +9,15 @@ import java.time.Instant
  */
 internal data class CmdlineExecutionInfo(
     val cmdline: List<String>,
-    val environments: Map<String, String?>,
+    val environments: List<Pair<String, String?>>,
     val workingDirectory: File?,
     val startAt: Long,
     val endAt: Long,
-    val pid: Int? = null,
+    val pid: Long? = null,
     val exitCode: Int? = null
 ) {
     internal fun generateMessage(sb: StringBuilder) {
-        with(sb){
+        with(sb) {
             appendCmdline()
             appendCmdStatus()
             appendLine()
