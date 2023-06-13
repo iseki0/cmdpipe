@@ -20,7 +20,7 @@ class CmdlineHandlerException internal constructor(
             if (stderrHandlerThrows != null) {
                 appendLine("StderrHandler: ${"$stderrHandlerThrows".substringBefore('\n').trim()}")
             }
-            info.generateMessage(this)
+            CmdlineExecutionInfoTextualFormatter.format(info)
         }
     }
 }

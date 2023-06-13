@@ -8,7 +8,7 @@ class CmdlineException internal constructor(
         buildString {
             val firstCauseLine = cause.toString().substringBefore('\n').trim()
             appendLine("exception happened during command execution: $firstCauseLine")
-            info.generateMessage(this)
+            CmdlineExecutionInfoTextualFormatter.format(info)
         }
     }
 }

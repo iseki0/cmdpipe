@@ -85,14 +85,15 @@ internal class CmdlineImpl<SO, SE>(
             cleanupHandlers.add { runCatching { task.cancel(true) } }
             return task
         }
+
+        var process: Process? = null
         try {
             // create process
             val processBuilder = ProcessBuilder(d.cmdline)
             if (d.wd != null) processBuilder.directory(d.wd)
             processBuilder.configureEnvironments(d.env)
             if (stdoutHandler == null) processBuilder.discardStdout()
-            val process = processBuilder.start()
-            cleanupHandlers.add { runCatching { process.destroyForcibly() } }
+            process = processBuilder.start()
             executionInfo = executionInfo.copy(
                 pid = process.safePID(),
                 startAt = System.currentTimeMillis(),
@@ -129,6 +130,7 @@ internal class CmdlineImpl<SO, SE>(
                 errorRecorder = stderrRecorder,
             )
         } catch (e: Exception) {
+            runCatching { process?.destroyForcibly() }.onFailure { e.addSuppressed(e) }
             when (e) {
                 is InterruptedException, is CmdlineHandlerException, is TimeoutException -> throw e
                 else -> throw CmdlineException(info = executionInfo, cause = e)

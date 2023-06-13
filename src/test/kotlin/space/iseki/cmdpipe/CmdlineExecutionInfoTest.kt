@@ -16,7 +16,7 @@ class CmdlineExecutionInfoTest{
             pid = 1,
             exitCode = 2,
         )
-        println(info.generateMessage())
+        println(CmdlineExecutionInfoTextualFormatter.format(info))
     }
 }
 
