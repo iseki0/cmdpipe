@@ -18,5 +18,6 @@ class CmdlineExecutionInfoTest{
         )
         println(CmdlineExecutionInfoTextualFormatter.format(info))
     }
+
 }
 

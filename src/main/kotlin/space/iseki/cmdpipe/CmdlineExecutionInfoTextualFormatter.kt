@@ -2,6 +2,7 @@ package space.iseki.cmdpipe
 
 import java.time.Duration
 import java.time.Instant
+import java.util.*
 
 internal object CmdlineExecutionInfoTextualFormatter {
     fun format(sb: StringBuilder, info: CmdlineExecutionInfo) {
@@ -23,10 +24,13 @@ internal object CmdlineExecutionInfoTextualFormatter {
 
     context (CmdlineExecutionInfo)
     private fun StringBuilder.appendCmdline() {
-        append("Cmdline: ")
+        append(t("title.cmdline"))
+        append(' ')
         append(cmdline)
         if (workingDirectory != null) {
-            append(" at ")
+            append(' ')
+            append(t("main.at"))
+            append(' ')
             append(workingDirectory)
         }
     }
@@ -34,22 +38,23 @@ internal object CmdlineExecutionInfoTextualFormatter {
     context (CmdlineExecutionInfo)
     private fun StringBuilder.appendCmdStatus() {
         if (pid == null && exitCode == null) return
-        append(" [")
+        append(' ')
         if (pid != null) {
-            append("Pid=")
+            append(t("main.pid"))
+            append('=')
             append(pid)
             if (exitCode != null) append(' ')
         }
         if (exitCode != null) {
-            append("Exit=")
+            append(t("main.exit"))
+            append('=')
             append(exitCode)
         }
-        append(']')
     }
 
     context (CmdlineExecutionInfo)
     private fun StringBuilder.appendEnvironments() {
-        appendLine("Environment variables:")
+        appendLine(t("title.env"))
         environments.forEach { (k, v) ->
             append("  ")
             append(k)
@@ -57,14 +62,16 @@ internal object CmdlineExecutionInfoTextualFormatter {
                 append('=')
                 appendLine(v.multilineFormatted())
             } else {
-                appendLine(" (cleared)")
+                append(' ')
+                appendLine(t("env.cleared"))
             }
         }
     }
 
     context (CmdlineExecutionInfo)
     private fun StringBuilder.appendTiming() {
-        append("Timing: ")
+        append(t("title.timing"))
+        append(' ')
         if (startAt != 0L) {
             append(Instant.ofEpochMilli(startAt).toString())
         }
@@ -73,7 +80,9 @@ internal object CmdlineExecutionInfoTextualFormatter {
             append(Instant.ofEpochMilli(endAt).toString())
         }
         if (startAt != 0L && endAt != 0L) {
-            append(" duration ")
+            append(' ')
+            append(t("timing.duration"))
+            append(' ')
             append(Duration.ofMillis(endAt - startAt).toString())
         }
     }
@@ -88,4 +97,7 @@ internal object CmdlineExecutionInfoTextualFormatter {
         }
     }
 
+    private val bundle by lazy { ResourceBundle.getBundle(CmdlineExecutionInfoTextualFormatter::class.java.name) }
+    private fun t(key: String): String = bundle.getString(key)
 }
+
