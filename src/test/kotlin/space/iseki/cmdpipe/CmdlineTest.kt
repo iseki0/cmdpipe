@@ -6,7 +6,7 @@ import kotlin.test.Test
 
 class CmdlineTest {
     private val isWindows = System.getProperty("os.name").startsWith("Windows")
-    private val cmd3 = if (isWindows) listOf("cmd", "/c", "dir /?a") else listOf("ls -aa")
+    private val cmd3 = if (isWindows) listOf("cmd", "/c", "dir /?a") else listOf("ls", "-aa")
     private val cmd = if (isWindows) listOf("cmd", "/c", "dir") else listOf("ls")
     private val cmd2 = if (isWindows) listOf("cmd", "/c", "ping", "127.0.0.1") else listOf("sleep", "5")
     private val cs = when {
