@@ -17,13 +17,13 @@ dependencies {
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    targetCompatibility = "1.8"
+    targetCompatibility = "11"
     javaCompiler.set(javaToolchains.compilerFor { configure() })
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions.freeCompilerArgs += "-Xcontext-receivers"
-    kotlinOptions.jvmTarget = "1.8"
+    kotlinOptions.jvmTarget = "11"
     kotlinJavaToolchain.toolchain.use(javaToolchains.launcherFor { configure() })
 }
 
