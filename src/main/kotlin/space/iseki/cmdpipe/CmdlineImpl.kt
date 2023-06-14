@@ -4,15 +4,9 @@ import org.slf4j.MDC
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
-import java.util.concurrent.FutureTask
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
+import java.util.concurrent.*
 
-private val defaultExecutor = Executors.newCachedThreadPool()
+private val defaultExecutor by lazy { Executors.newCachedThreadPool { Thread(it).also { t -> t.isDaemon = true } } }
 
 internal class CmdlineImpl<SO, SE>(
     private val d: Data,
