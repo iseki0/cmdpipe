@@ -6,7 +6,11 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.*
 
-private val defaultExecutor by lazy { Executors.newCachedThreadPool { Thread(it).also { t -> t.isDaemon = true } } }
+private val defaultExecutor by lazy {
+    val factory = Executors.defaultThreadFactory()
+    val delegatedThreadFactory = ThreadFactory { r -> factory.newThread(r).also { it.isDaemon = true } }
+    Executors.newCachedThreadPool(delegatedThreadFactory)
+}
 
 internal class CmdlineImpl<SO, SE> private constructor(
     private val d: Data,
