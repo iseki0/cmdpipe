@@ -5,24 +5,26 @@ import java.time.Instant
 import java.util.*
 
 internal object CmdlineExecutionInfoTextualFormatter {
-    fun format(sb: StringBuilder, info: CmdlineExecutionInfo) {
-        with(info) {
-            with(sb) {
-                appendCmdline()
-                appendCmdStatus()
-                appendLine()
-                if (startAt != 0L || endAt != 0L) {
-                    appendTiming()
+    private fun format(sb: StringBuilder, info: CmdlineExecutionInfo) {
+        with(defaultBundle) {
+            with(info) {
+                with(sb) {
+                    appendCmdline()
+                    appendCmdStatus()
                     appendLine()
+                    if (startAt != 0L || endAt != 0L) {
+                        appendTiming()
+                        appendLine()
+                    }
+                    if (environments.isNotEmpty()) appendEnvironments()
                 }
-                if (environments.isNotEmpty()) appendEnvironments()
             }
         }
     }
 
     fun format(info: CmdlineExecutionInfo) = buildString { format(this, info) }
 
-    context (CmdlineExecutionInfo)
+    context (CmdlineExecutionInfo, ResourceBundle)
     private fun StringBuilder.appendCmdline() {
         append(t("title.cmdline"))
         append(' ')
@@ -35,7 +37,7 @@ internal object CmdlineExecutionInfoTextualFormatter {
         }
     }
 
-    context (CmdlineExecutionInfo)
+    context (CmdlineExecutionInfo, ResourceBundle)
     private fun StringBuilder.appendCmdStatus() {
         if (pid == null && exitCode == null) return
         append(' ')
@@ -52,7 +54,7 @@ internal object CmdlineExecutionInfoTextualFormatter {
         }
     }
 
-    context (CmdlineExecutionInfo)
+    context (CmdlineExecutionInfo, ResourceBundle)
     private fun StringBuilder.appendEnvironments() {
         appendLine(t("title.env"))
         environments.forEach { (k, v) ->
@@ -68,7 +70,7 @@ internal object CmdlineExecutionInfoTextualFormatter {
         }
     }
 
-    context (CmdlineExecutionInfo)
+    context (CmdlineExecutionInfo, ResourceBundle)
     private fun StringBuilder.appendTiming() {
         append(t("title.timing"))
         append(' ')
@@ -97,7 +99,10 @@ internal object CmdlineExecutionInfoTextualFormatter {
         }
     }
 
-    private val bundle by lazy { ResourceBundle.getBundle(CmdlineExecutionInfoTextualFormatter::class.java.name) }
-    private fun t(key: String): String = bundle.getString(key)
+    context (ResourceBundle)
+    @JvmStatic
+    private fun t(key: String): String = getString(key)
 }
 
+private val baseName: String = CmdlineExecutionInfoTextualFormatter::class.java.name
+private val defaultBundle: ResourceBundle = ResourceBundle.getBundle(baseName)
