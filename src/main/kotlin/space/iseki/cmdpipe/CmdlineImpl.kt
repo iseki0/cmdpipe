@@ -8,7 +8,7 @@ import java.util.concurrent.*
 
 private val defaultExecutor by lazy { Executors.newCachedThreadPool { Thread(it).also { t -> t.isDaemon = true } } }
 
-internal class CmdlineImpl<SO, SE>(
+internal class CmdlineImpl<SO, SE> private constructor(
     private val d: Data,
     private val stdoutHandler: ((InputStream) -> SO)?,
     private val stderrHandler: ((InputStream) -> SE)?,
@@ -25,6 +25,9 @@ internal class CmdlineImpl<SO, SE>(
     )
 
     private fun copyData(d: Data) = CmdlineImpl(d, stdoutHandler, stderrHandler)
+
+    override fun withCmdline(cmdArray: Collection<String>): Cmdline<SO, SE> =
+        copyData(d.copy(cmdline = cmdArray.toList()))
 
     override fun withEnvironment(vararg variables: Pair<String, String?>): Cmdline<SO, SE> =
         copyData(d.copy(env = d.env + variables))
