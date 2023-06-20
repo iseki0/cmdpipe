@@ -6,7 +6,7 @@ plugins {
 
 allprojects {
     group = "space.iseki.cmdpipe"
-    version = "0.2.0-SNAPSHOT"
+    version = "0.3.0-SNAPSHOT"
 }
 
 java {
@@ -15,6 +15,10 @@ java {
 
 dependencies {
     compileOnly(libs.slf4j.api)
+    compileOnly(libs.kotlin.logging)
+//    testImplementation(libs.slf4j.api)
+//    testImplementation(libs.kotlin.logging)
+//    testImplementation(libs.slf4j.jdk14)
 }
 
 publishing {

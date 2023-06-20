@@ -1,15 +1,27 @@
 package space.iseki.cmdpipe
 
+import io.github.oshai.kotlinlogging.KLogger
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.slf4j.MDC
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.*
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 
 private val defaultExecutor by lazy {
     val factory = Executors.defaultThreadFactory()
     val delegatedThreadFactory = ThreadFactory { r -> factory.newThread(r).also { it.isDaemon = true } }
     Executors.newCachedThreadPool(delegatedThreadFactory)
+}
+
+private val logger = runCatching { KotlinLogging.logger(Cmdline::class.qualifiedName.orEmpty()) }
+    .getOrNull()
+
+private inline fun logging(block: KLogger.() -> Unit) {
+    logger?.block()
 }
 
 internal class CmdlineImpl<SO, SE> private constructor(
@@ -68,14 +80,17 @@ internal class CmdlineImpl<SO, SE> private constructor(
         )
 
         val stderrRecorder = ErrorRecorder()
-        fun <R> task(process: Process, block: () -> R): FutureTask<R> {
+
+        var process: Process? = null
+
+        fun <R> task(block: () -> R): FutureTask<R> {
             val task = FutureTask {
                 val oldMdc = safeDumpMDC()
                 try {
                     safeSetMDC(mdc)
                     block()
                 } catch (th: Throwable) {
-                    runCatching { process.destroyForcibly() }.onFailure { th.addSuppressed(it) }
+                    runCatching { process?.destroyForcibly() }.onFailure { th.addSuppressed(it) }
                     exceptionManager.add(th)
                     throw th
                 } finally {
@@ -86,10 +101,9 @@ internal class CmdlineImpl<SO, SE> private constructor(
             cleanupHandlers.add { runCatching { task.cancel(true) } }
             return task
         }
-
-        var process: Process? = null
         try {
             // create process
+            logging { debug { "Running command: ${d.cmdline}" } }
             val processBuilder = ProcessBuilder(d.cmdline)
             if (d.wd != null) processBuilder.directory(d.wd)
             processBuilder.configureEnvironments(d.env)
@@ -99,18 +113,21 @@ internal class CmdlineImpl<SO, SE> private constructor(
                 pid = process.safePID(),
                 startAt = System.currentTimeMillis(),
             )
-            val stdinHandlerFuture = d.stdinHandler?.let { task(process) { process.outputStream.use(it) } }
-            val stdoutHandlerFuture = stdoutHandler?.let { task(process) { process.inputStream.use(it) } }
-            val stderrHandlerFuture = stderrHandler?.let { task(process) { process.errorStream.use(it) } }
+            logging { debug { "pid: ${executionInfo.pid}" } }
+            val stdinHandlerFuture = d.stdinHandler?.let { task { process.outputStream.use(it) } }
+            val stdoutHandlerFuture = stdoutHandler?.let { task { process.inputStream.use(it) } }
+            val stderrHandlerFuture = stderrHandler?.let { task { process.errorStream.use(it) } }
             if (stderrHandlerFuture == null) {
-                task(process) { process.errorStream.use { it.reader().copyTo(stderrRecorder.writer) } }
+                task { process.errorStream.use { it.reader().copyTo(stderrRecorder.writer) } }
             }
             if (d.timeout > 0) {
                 if (!process.waitFor(d.timeout, TimeUnit.MILLISECONDS)) {
+                    logging { debug { "timeout, process will be killed" } }
                     process.destroyForcibly()
                 }
             }
             executionInfo = executionInfo.copy(exitCode = process.waitFor(), endAt = System.currentTimeMillis())
+            logging { debug { "process terminated, exit code: ${executionInfo.exitCode}" } }
             listOfNotNull(stdinHandlerFuture, stdoutHandlerFuture, stderrHandlerFuture).waitAll()
             exceptionManager.exception?.let {
                 throw CmdlineHandlerException(
