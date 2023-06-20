@@ -36,7 +36,8 @@ class CmdlineTest {
     @Test
     fun test3() {
         assertThrows<CmdlineHandlerException> {
-            val a = cmdline(cmd).handleStdout { error("1") }.withEnvironment("a" to "b").execute()
-        }
+            cmdline(cmd).handleStdout { error("1") }.withEnvironment("a" to "b").execute()
+        }.printStackTrace()
     }
+
 }

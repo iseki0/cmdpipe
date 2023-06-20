@@ -58,7 +58,7 @@ internal object CmdlineExecutionInfoTextualFormatter {
     private fun StringBuilder.appendEnvironments() {
         appendLine(t("title.env"))
         environments.forEach { (k, v) ->
-            append("  ")
+            append('\t')
             append(k)
             if (v != null) {
                 append('=')
@@ -89,7 +89,7 @@ internal object CmdlineExecutionInfoTextualFormatter {
         }
     }
 
-    private fun String.multilineFormatted(linePrefix: String = " ".repeat(4)) = buildString {
+    private fun String.multilineFormatted(linePrefix: String = "\t") = buildString {
         val lines = this@multilineFormatted.lines()
         append(lines.first())
         for (it in lines.subList(1, lines.size)) {
