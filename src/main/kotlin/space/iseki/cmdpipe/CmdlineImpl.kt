@@ -9,17 +9,19 @@ import java.io.OutputStream
 import java.nio.charset.Charset
 import java.util.concurrent.*
 
-private val defaultExecutor by lazy {
-    val factory = Executors.defaultThreadFactory()
-    val delegatedThreadFactory = ThreadFactory { r -> factory.newThread(r).also { it.isDaemon = true } }
-    Executors.newCachedThreadPool(delegatedThreadFactory)
-}
 
 private val logger = runCatching { LoggerFactory.getLogger(Cmdline::class.java.name) }
     .getOrNull()
 
 private inline fun logging(block: Logger.() -> Unit) {
     logger?.block()
+}
+
+private val defaultExecutor by lazy {
+    val factory = Executors.defaultThreadFactory()
+    val delegatedThreadFactory = ThreadFactory { r -> factory.newThread(r).also { it.isDaemon = true } }
+    Executors.newCachedThreadPool(delegatedThreadFactory)
+        .also { logging { debug("builtin thread pool created, {}", it) } }
 }
 
 internal class CmdlineImpl<SO, SE> private constructor(
@@ -123,7 +125,7 @@ internal class CmdlineImpl<SO, SE> private constructor(
             val stderrHandlerFuture = maybeHandleFor("stderr", process.errorStream, stderrHandler)
             if (stderrHandlerFuture == null) {
                 logging { debug("no stderr handler set, builtin error recorder will be used") }
-                maybeHandleFor("stderr-recorder", process.errorStream){
+                maybeHandleFor("stderr-recorder", process.errorStream) {
                     it.reader(Charset.defaultCharset()).copyTo(stderrRecorder.writer)
                 }
             }
@@ -138,6 +140,7 @@ internal class CmdlineImpl<SO, SE> private constructor(
             executionInfo = executionInfo.copy(exitCode = process.waitFor(), endAt = System.currentTimeMillis())
             logging { debug("process terminated, exit code: {}", executionInfo.exitCode) }
             listOfNotNull(stdinHandlerFuture, stdoutHandlerFuture, stderrHandlerFuture).waitAll()
+            logging { debug("all handlers terminated") }
             exceptionManager.exception?.let {
                 throw CmdlineHandlerException(
                     info = executionInfo,
@@ -157,7 +160,10 @@ internal class CmdlineImpl<SO, SE> private constructor(
                 errorRecorder = stderrRecorder,
             )
         } catch (e: Exception) {
-            runCatching { process?.destroyForcibly() }.onFailure { e.addSuppressed(e) }
+            runCatching { process?.destroyForcibly() }.onFailure {
+                logging { debug("process killing failed", it) }
+                e.addSuppressed(e)
+            }
             when (e) {
                 is InterruptedException, is CmdlineHandlerException, is TimeoutException -> throw e
                 else -> throw CmdlineException(info = executionInfo, cause = e)
