@@ -22,6 +22,14 @@ tasks.withType<JacocoReport> {
     }
 }
 
+sonarqube {
+    properties {
+        property("sonar.projectKey", "iseki0_cmdpipe")
+        property("sonar.organization", "iseki0")
+        property("sonar.host.url", "https://sonarcloud.io")
+    }
+}
+
 dependencies {
     compileOnly(libs.slf4j.api)
     testImplementation(libs.slf4j.api)
