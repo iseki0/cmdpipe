@@ -22,7 +22,7 @@ tasks.withType<JacocoReport> {
     }
 }
 
-sonarqube {
+sonar {
     properties {
         property("sonar.projectKey", "iseki0_cmdpipe")
         property("sonar.organization", "iseki0")
