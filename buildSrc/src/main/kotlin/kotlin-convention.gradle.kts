@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     id("org.jetbrains.dokka")
-    id("org.jetbrains.kotlinx.kover")
+//    id("org.jetbrains.kotlinx.kover")
     id("org.jetbrains.kotlinx.binary-compatibility-validator")
     idea
 }

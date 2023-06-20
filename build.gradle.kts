@@ -2,6 +2,8 @@ plugins {
     `kotlin-convention`
     signing
     `maven-publish`
+    jacoco
+    id("org.sonarqube") version "3.5.0.2730"
 }
 
 allprojects {
