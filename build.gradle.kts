@@ -15,6 +15,13 @@ java {
     withSourcesJar()
 }
 
+tasks.withType<JacocoReport> {
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
 dependencies {
     compileOnly(libs.slf4j.api)
     testImplementation(libs.slf4j.api)
