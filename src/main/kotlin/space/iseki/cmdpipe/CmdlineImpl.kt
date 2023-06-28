@@ -86,13 +86,13 @@ internal class CmdlineImpl<SO, SE> private constructor(
 
         fun <T : AutoCloseable, R> maybeHandleFor(handlerName: String, autoCloseable: T, handler: ((T) -> R)?) =
             when (handler) {
-                null -> null.apply { logging { debug("{} handler not set", handlerName) } }
+                null -> null.apply { logging { trace("{} handler not set", handlerName) } }
                 else -> FutureTask {
                     val oldMdc = safeDumpMDC()
                     try {
                         safeSetMDC(mainMdc)
-                        logging { debug("{} handler begin", handlerName) }
-                        autoCloseable.use(handler).also { logging { debug("{} handler end", handlerName) } }
+                        logging { trace("{} handler begin", handlerName) }
+                        autoCloseable.use(handler).also { logging { trace("{} handler end", handlerName) } }
                     } catch (th: Throwable) {
                         logging { debug("handler $handlerName throws, process will be killed forcibly", th) }
                         runCatching { process?.destroyForcibly() }
@@ -131,7 +131,7 @@ internal class CmdlineImpl<SO, SE> private constructor(
             val stdoutHandlerFuture = maybeHandleFor("stdout", process.inputStream, stdoutHandler)
             val stderrHandlerFuture = maybeHandleFor("stderr", process.errorStream, stderrHandler)
             if (stderrHandlerFuture == null) {
-                logging { debug("no stderr handler set, builtin error recorder will be used") }
+                logging { trace("no stderr handler set, builtin error recorder will be used") }
                 maybeHandleFor("stderr-recorder", process.errorStream) {
                     it.reader(Charset.defaultCharset()).copyTo(stderrRecorder.writer)
                 }
@@ -143,11 +143,11 @@ internal class CmdlineImpl<SO, SE> private constructor(
                     process.destroyForcibly()
                 }
             }
-            logging { debug("wait the process terminate") }
+            logging { trace("wait the process terminate") }
             executionInfo = executionInfo.copy(exitCode = process.waitFor(), endAt = System.currentTimeMillis())
             logging { debug("process terminated, exit code: {}", executionInfo.exitCode) }
             listOfNotNull(stdinHandlerFuture, stdoutHandlerFuture, stderrHandlerFuture).waitAll()
-            logging { debug("all handlers terminated") }
+            logging { trace("all handlers terminated") }
             exceptionManager.exception?.let {
                 throw CmdlineHandlerException(
                     info = executionInfo,
