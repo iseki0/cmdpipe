@@ -8,7 +8,7 @@ plugins {
 
 allprojects {
     group = "space.iseki.cmdpipe"
-    version = "0.3.4-SNAPSHOT"
+    version = "0.3.5-SNAPSHOT"
 }
 
 java {
