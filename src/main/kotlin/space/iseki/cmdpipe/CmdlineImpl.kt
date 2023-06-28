@@ -86,11 +86,7 @@ internal class CmdlineImpl<SO, SE> private constructor(
 
         fun <T : AutoCloseable, R> maybeHandleFor(handlerName: String, autoCloseable: T, handler: ((T) -> R)?) =
             when (handler) {
-                null -> null.apply {
-                    logging { debug("{} handler not set", handlerName) }
-                    autoCloseable.close()
-                }
-
+                null -> null.apply { logging { debug("{} handler not set", handlerName) } }
                 else -> FutureTask {
                     val oldMdc = safeDumpMDC()
                     try {
