@@ -113,13 +113,20 @@ internal class CmdlineImpl<SO, SE> private constructor(
             val processBuilder = ProcessBuilder(d.cmdline)
             if (d.wd != null) processBuilder.directory(d.wd)
             processBuilder.configureEnvironments(d.env)
-            if (stdoutHandler == null) processBuilder.discardStdout()
+            if (stdoutHandler == null) {
+                logging { trace("discard stdout") }
+                processBuilder.discardStdout()
+            }
             process = processBuilder.start()
             executionInfo = executionInfo.copy(
                 pid = process.safePID(),
                 startAt = System.currentTimeMillis(),
             )
             logging { debug("process started, pid: {}", executionInfo.pid) }
+            if (d.stdinHandler == null) {
+                logging { trace("close stdin because the handler not set") }
+                process.outputStream.close()
+            }
             val stdinHandlerFuture = maybeHandleFor("stdin", process.outputStream, d.stdinHandler)
             val stdoutHandlerFuture = maybeHandleFor("stdout", process.inputStream, stdoutHandler)
             val stderrHandlerFuture = maybeHandleFor("stderr", process.errorStream, stderrHandler)
