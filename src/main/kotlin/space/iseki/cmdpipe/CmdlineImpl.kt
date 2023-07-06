@@ -10,25 +10,27 @@ import java.nio.charset.Charset
 import java.util.concurrent.*
 
 
-private val logger = runCatching { LoggerFactory.getLogger(Cmdline::class.java.name) }
-    .getOrNull()
-
-private inline fun logging(block: Logger.() -> Unit) {
-    logger?.block()
-}
-
-private val defaultExecutor by lazy {
-    val factory = Executors.defaultThreadFactory()
-    val delegatedThreadFactory = ThreadFactory { r -> factory.newThread(r).also { it.isDaemon = true } }
-    Executors.newCachedThreadPool(delegatedThreadFactory)
-        .also { logging { debug("builtin thread pool created, {}", it) } }
-}
-
 internal class CmdlineImpl<SO, SE> private constructor(
     private val d: Data,
     private val stdoutHandler: ((InputStream) -> SO)?,
     private val stderrHandler: ((InputStream) -> SE)?,
 ) : Cmdline<SO, SE> {
+
+    private companion object {
+        private val logger = runCatching { LoggerFactory.getLogger(Cmdline::class.java.name) }.getOrNull()
+
+        private inline fun logging(block: Logger.() -> Unit) {
+            logger?.block()
+        }
+
+        private val defaultExecutor by lazy {
+            val factory = Executors.defaultThreadFactory()
+            val delegatedThreadFactory = ThreadFactory { r -> factory.newThread(r).also { it.isDaemon = true } }
+            Executors.newCachedThreadPool(delegatedThreadFactory)
+                .also { logging { debug("builtin thread pool created, {}", it) } }
+        }
+    }
+
     constructor(cmdArray: Collection<String>) : this(Data(cmdArray.toList()), null, null)
 
     data class Data(
@@ -48,11 +50,9 @@ internal class CmdlineImpl<SO, SE> private constructor(
     override fun withEnvironment(vararg variables: Pair<String, String?>): Cmdline<SO, SE> =
         copyData(d.copy(env = d.env + variables))
 
-    override fun withWorkingDirectory(dir: File): Cmdline<SO, SE> =
-        copyData(d.copy(wd = dir))
+    override fun withWorkingDirectory(dir: File): Cmdline<SO, SE> = copyData(d.copy(wd = dir))
 
-    override fun withTimeout(millisecond: Long): Cmdline<SO, SE> =
-        copyData(d.copy(timeout = millisecond))
+    override fun withTimeout(millisecond: Long): Cmdline<SO, SE> = copyData(d.copy(timeout = millisecond))
 
     override fun withExecutor(executor: Executor) = copyData(d.copy(executor = executor))
 
@@ -95,8 +95,14 @@ internal class CmdlineImpl<SO, SE> private constructor(
                         autoCloseable.use(handler).also { logging { trace("{} handler end", handlerName) } }
                     } catch (th: Throwable) {
                         logging { debug("handler $handlerName throws, process will be killed forcibly", th) }
-                        runCatching { process?.destroyForcibly() }
-                            .onFailure { logging { debug("process killing failed", it) } }
+                        runCatching { process?.destroyForcibly() }.onFailure {
+                            logging {
+                                debug(
+                                    "process killing failed",
+                                    it
+                                )
+                            }
+                        }
                         exceptionManager.add(th)
                         throw th
                     } finally {
@@ -179,38 +185,41 @@ internal class CmdlineImpl<SO, SE> private constructor(
             cleanupHandlers.forEach { it() }
         }
     }
-}
-
-private fun Collection<Future<*>>.waitAll() {
-    forEach { runCatching { it.get() } }
-}
 
 
-private fun <T> Future<T>.throwableOrNull() = runCatching { get() }.exceptionOrNull()?.let {
-    when (it) {
-        is ExecutionException -> it.cause
-        else -> it
+    private fun Collection<Future<*>>.waitAll() {
+        forEach { runCatching { it.get() } }
     }
-}
 
-private fun ProcessBuilder.configureEnvironments(m: List<Pair<String, String?>>) {
-    if (m.isEmpty()) return
-    val env = environment()
-    for ((k, v) in m) {
-        when (v) {
-            null -> env.remove(k)
-            else -> env[k] = v
+
+    private fun <T> Future<T>.throwableOrNull() = runCatching { get() }.exceptionOrNull()?.let {
+        when (it) {
+            is ExecutionException -> it.cause
+            else -> it
         }
     }
+
+    private fun ProcessBuilder.configureEnvironments(m: List<Pair<String, String?>>) {
+        if (m.isEmpty()) return
+        val env = environment()
+        for ((k, v) in m) {
+            when (v) {
+                null -> env.remove(k)
+                else -> env[k] = v
+            }
+        }
+    }
+
+    private fun ProcessBuilder.discardStdout() {
+        redirectOutput(ProcessBuilder.Redirect.DISCARD)
+    }
+
+    private fun Process.safePID() = runCatching { pid() }.getOrDefault(-1)
+
+    private fun safeDumpMDC() = runCatching { MDC.getCopyOfContextMap() }.getOrNull()
+    private fun safeSetMDC(m: Map<String, String>?) {
+        runCatching { MDC.setContextMap(m) }
+    }
+
 }
 
-private fun ProcessBuilder.discardStdout() {
-    redirectOutput(ProcessBuilder.Redirect.DISCARD)
-}
-
-private fun Process.safePID() = runCatching { pid() }.getOrDefault(-1)
-
-private fun safeDumpMDC() = runCatching { MDC.getCopyOfContextMap() }.getOrNull()
-private fun safeSetMDC(m: Map<String, String>?) {
-    runCatching { MDC.setContextMap(m) }
-}
