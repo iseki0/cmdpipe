@@ -1,16 +1,22 @@
 package space.iseki.cmdpipe
 
-import java.util.concurrent.atomic.AtomicReference
+import java.lang.invoke.MethodHandles
 
 internal class ExceptionManager {
-    private var root = AtomicReference<Throwable?>(null)
+    companion object {
+        private val ROOT =
+            MethodHandles.lookup().findVarHandle(ExceptionManager::class.java, "root", Throwable::class.java)
+    }
+
+    @Volatile
+    private var root: Throwable? = null
 
     fun add(th: Throwable) {
-        if (!root.compareAndSet(null, th)) {
-            root.get()!!.addSuppressed(th)
+        if (!ROOT.compareAndSet(this, null, th)) {
+            root!!.addSuppressed(th)
         }
     }
 
     val exception: Throwable?
-        get() = root.get()
+        get() = root
 }

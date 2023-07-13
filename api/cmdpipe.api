@@ -39,6 +39,72 @@ public final class space/iseki/cmdpipe/CmdlineHandlerException : java/lang/Runti
 	public fun getMessage ()Ljava/lang/String;
 }
 
+public final class space/iseki/cmdpipe/CommandImpl : space/iseki/cmdpipe/Cmdline {
+	public static final field Companion Lspace/iseki/cmdpipe/CommandImpl$Companion;
+	public fun <init> (Lspace/iseki/cmdpipe/CommandInfo;Ljava/util/concurrent/Executor;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;)V
+	public fun execute ()Lspace/iseki/cmdpipe/ExecutionResult;
+	public fun handleStderr (Lkotlin/jvm/functions/Function1;)Lspace/iseki/cmdpipe/Cmdline;
+	public fun handleStdin (Lkotlin/jvm/functions/Function1;)Lspace/iseki/cmdpipe/Cmdline;
+	public fun handleStdout (Lkotlin/jvm/functions/Function1;)Lspace/iseki/cmdpipe/Cmdline;
+	public fun withCmdline (Ljava/util/Collection;)Lspace/iseki/cmdpipe/Cmdline;
+	public fun withCmdline ([Ljava/lang/String;)Lspace/iseki/cmdpipe/Cmdline;
+	public fun withEnvironment ([Lkotlin/Pair;)Lspace/iseki/cmdpipe/Cmdline;
+	public fun withExecutor (Ljava/util/concurrent/Executor;)Lspace/iseki/cmdpipe/Cmdline;
+	public fun withTimeout (J)Lspace/iseki/cmdpipe/Cmdline;
+	public fun withWorkingDirectory (Ljava/io/File;)Lspace/iseki/cmdpipe/Cmdline;
+}
+
+public final class space/iseki/cmdpipe/CommandImpl$Companion {
+}
+
+public final class space/iseki/cmdpipe/CommandInfo {
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()Ljava/io/File;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()J
+	public final fun copy (Ljava/util/List;Ljava/io/File;Ljava/util/List;J)Lspace/iseki/cmdpipe/CommandInfo;
+	public static synthetic fun copy$default (Lspace/iseki/cmdpipe/CommandInfo;Ljava/util/List;Ljava/io/File;Ljava/util/List;JILjava/lang/Object;)Lspace/iseki/cmdpipe/CommandInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdditionalEnvironmentVariables ()Ljava/util/List;
+	public final fun getCommandLine ()Ljava/util/List;
+	public final fun getTimeout ()J
+	public final fun getWorkingDirectory ()Ljava/io/File;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class space/iseki/cmdpipe/EnvironmentVariable {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Lkotlin/Pair;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lspace/iseki/cmdpipe/EnvironmentVariable;
+	public static synthetic fun copy$default (Lspace/iseki/cmdpipe/EnvironmentVariable;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lspace/iseki/cmdpipe/EnvironmentVariable;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class space/iseki/cmdpipe/ExecutionInfo {
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/time/Instant;
+	public final fun component3 ()Ljava/time/Instant;
+	public final fun component4 ()Ljava/lang/Integer;
+	public final fun component5 ()Z
+	public final fun copy (ILjava/time/Instant;Ljava/time/Instant;Ljava/lang/Integer;Z)Lspace/iseki/cmdpipe/ExecutionInfo;
+	public static synthetic fun copy$default (Lspace/iseki/cmdpipe/ExecutionInfo;ILjava/time/Instant;Ljava/time/Instant;Ljava/lang/Integer;ZILjava/lang/Object;)Lspace/iseki/cmdpipe/ExecutionInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEndAt ()Ljava/time/Instant;
+	public final fun getExitCode ()Ljava/lang/Integer;
+	public final fun getPid ()I
+	public final fun getStartAt ()Ljava/time/Instant;
+	public final fun getTimeoutToKilled ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class space/iseki/cmdpipe/ExecutionResult {
 	public final fun getCmdline ()Ljava/util/List;
 	public final fun getExitCode ()I
