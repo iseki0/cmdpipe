@@ -5,15 +5,16 @@ data class EnvVar(
     /**
      * if is null, the variable which matches the name will be removed
      */
-    val value: String?
+    val value: String?,
+    val confidential: Boolean = false,
 ) {
     override fun toString(): String {
         val key = simpleEscapeString(name, true)
         val value = value?.let { simpleEscapeString(it, false) }
-        return if (value != null) {
-            "$key=\"$value\""
-        } else {
-            "$key (cleared)"
+        return when {
+            value == null -> "$key (cleared)"
+            confidential -> "$key ***"
+            else -> "$key=\"$value\""
         }
     }
 

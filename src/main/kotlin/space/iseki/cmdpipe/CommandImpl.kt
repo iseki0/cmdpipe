@@ -3,23 +3,33 @@
 package space.iseki.cmdpipe
 
 import space.iseki.cmdpipe.logging.Logger
-import space.iseki.cmdpipe.logging.MdcManager
 import java.io.File
-import java.nio.charset.Charset
+import java.io.InputStream
+import java.io.OutputStream
+import java.time.Instant
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.FutureTask
 import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
-class CommandImpl<SO, SE>(
+internal class CommandImpl<SO, SE>(
     private val info: CommandInfo,
-    private val executor: Executor,
-    private val stdinHandler: OutputHandler<Unit>?,
-    private val stdoutHandler: InputHandler<SO>?,
-    private val stderrHandler: InputHandler<SE>?,
+    private val executor: Executor = defaultExecutor,
+    private val stdinHandler: OutputHandler<Unit>? = null,
+    private val stdoutHandler: InputHandler<SO>? = null,
+    private val stderrHandler: InputHandler<SE>? = null,
 ) : Cmdline<SO, SE> {
+
     companion object {
+        operator fun invoke(cmdline: List<String>) =
+            CommandImpl<Nothing, Nothing>(info = CommandInfo(commandLine = cmdline))
+
+        @JvmStatic
         private val logger = Logger.getLogger(CommandImpl::class.java)
+
+        @JvmStatic
         private val defaultExecutor by lazy {
             val factory = Executors.defaultThreadFactory()
             val delegatedThreadFactory = ThreadFactory { r -> factory.newThread(r).also { it.isDaemon = true } }
@@ -29,8 +39,7 @@ class CommandImpl<SO, SE>(
 
     }
 
-    private fun copy(info: CommandInfo) =
-        CommandImpl(info, executor, stdinHandler, stdoutHandler, stderrHandler)
+    private fun copy(info: CommandInfo) = CommandImpl(info, executor, stdinHandler, stdoutHandler, stderrHandler)
 
     override fun withCmdline(cmdArray: Collection<String>): Cmdline<SO, SE> =
         info.copy(commandLine = cmdArray.toList()).let(::copy)
@@ -62,6 +71,7 @@ class CommandImpl<SO, SE>(
      *
      * @see ProcessBuilder.environment
      * @see ProcessBuilder.start
+     * @throws CmdlineHandlerException
      * @throws UnsupportedOperationException
      * @throws IllegalArgumentException
      * @throws java.io.IOException
@@ -72,19 +82,19 @@ class CommandImpl<SO, SE>(
         }
         logger.debug("executing command: {} at {}", info.commandLine, info.workingDirectory)
         val pb = ProcessBuilder()
+        logger.trace("configuring process builder {}", pb)
+        configureProcessBuilder(pb)
+        logger.trace("configuring completed")
+        val process = pb.start()
+        logger.debug("process started, pid: {}", process.pid())
+        return Running(process).doHandle()
+    }
+
+    private fun configureProcessBuilder(pb: ProcessBuilder) {
         pb.command(info.commandLine)
         if (info.workingDirectory != null) configureDir(pb, info.workingDirectory)
         configureEnviron(pb, info.additionalEnvVars)
         configureRedirect(pb)
-        val process = pb.start()
-        logger.debug("process started, pid: {}", process.pid())
-        try {
-        } catch (th: Throwable) {
-
-        }
-
-
-        TODO("Not yet implemented")
     }
 
 
@@ -98,8 +108,9 @@ class CommandImpl<SO, SE>(
             logger.trace("stdout handler is not set, discard")
             pb.redirectOutput(ProcessBuilder.Redirect.DISCARD)
         }
-        if (stderrHandler == null) {
-            logger.trace("stderr handler is not set, default error recorder will be used")
+        if (stderrHandler == null && !info.enableDefaultErrorRecorder) {
+            logger.trace("stderr handler is not set, and the default error recorder is disabled. Discard stderr")
+            pb.redirectError(ProcessBuilder.Redirect.DISCARD)
         }
     }
 
@@ -123,99 +134,184 @@ class CommandImpl<SO, SE>(
         }
     }
 
-    internal inner class Running(val process: Process) {
-        private val exceptionManager = ExceptionManager()
-        private val asyncTasks = mutableListOf<FutureTask<*>>()
 
-        fun doWait() {
-            val pid = safePid()
+    internal inner class Running(private val process: Process) {
 
-            val stdoutTask = when {
-                info.inheritIO || stdoutHandler == null -> null
-                else -> setupHandler("stdout", stdoutHandler, process.inputStream)
-            }
-            val stderrTask = when {
-                info.inheritIO || stderrHandler == null -> null
-                else -> setupHandler("stderr", stderrHandler, process.errorStream)
-            }
-            val errorRecorderTask = when {
-                info.inheritIO || stderrHandler != null -> null
-                else -> setupHandler("err-recorder", createErrorRecorderHandler(), process.errorStream)
-            }
-            val stdinTask = when {
-                stdinHandler != null -> setupHandler("stdin", stdinHandler, process.outputStream)
-                else -> {
-                    logger.trace("stdin handler not set, close stdin of the process")
-                    process.outputStream.close()
-                    null
+        private val pid = runCatching { process.pid() }
+            .onFailure { logger.debug("get pid failed", it) }.getOrElse { -1 }
+
+
+        private val startAt = Instant.now()
+        private val stdinHolder: Holder<OutputStream, Unit>?
+        private val stdoutHolder: Holder<InputStream, SO>?
+        private val stderrHolder: Holder<InputStream, SE>?
+        private val errorRecorderHolder: Holder<InputStream, String>?
+
+
+        init {
+            try {
+                stdinHolder = when {
+                    info.inheritIO -> null
+                    stdinHandler != null -> Holder("stdin", process.outputStream, stdinHandler)
+                    else -> {
+                        runCatching { process.outputStream.close() }
+                            .onSuccess { logger.trace("stdin closed") }
+                            .onFailure { logger.trace("stdin cannot close", it) }
+                        null
+                    }
                 }
+                stdoutHolder = when {
+                    info.inheritIO -> null
+                    stdoutHandler != null -> Holder("stdout", process.inputStream, stdoutHandler)
+                    else -> null
+                }
+                stderrHolder = when {
+                    info.inheritIO -> null
+                    stderrHandler != null -> Holder("stderr", process.errorStream, stderrHandler)
+                    else -> null
+                }
+                errorRecorderHolder = when {
+                    info.inheritIO || stderrHolder != null -> null
+                    info.enableDefaultErrorRecorder ->
+                        Holder("stderr-recorder", process.errorStream, createErrorRecorderHandler())
+
+                    else -> null
+                }
+            } catch (th: Throwable) {
+                logger.debug("exception caught during get stdio, killing")
+                closeAllStream() // streams may not be initialized, not a problem
+                kill()
+                throw th
             }
-            TODO()
         }
 
-        private fun createErrorRecorderHandler(): InputHandler<ErrorRecorder> = { input ->
-            ErrorRecorder().also { recorder -> input.reader(Charset.defaultCharset()).copyTo(recorder.writer) }
+        private val helper = StreamTaskHelper(executor) {
+            logger.trace("handler exception caught, async task helper shutdown")
+            closeAllStream()
+            kill()
         }
 
-        private fun safePid() = try {
-            process.pid()
-        } catch (e: UnsupportedOperationException) {
-            logger.debug("get PID failed, the operation is not supported: {}", e.lazyMessage())
-            -1
-        }
+        fun doHandle(): ExecutionResult<SO, SE> {
+            try {
+                val stdinJob = stdinHolder?.let { helper.submitTask { it.execute() } }
+                val stdoutJob = stdoutHolder?.let { helper.submitTask { it.execute() } }
+                val stderrJob = stderrHolder?.let { helper.submitTask { it.execute() } }
+                val errorRecorderJob = errorRecorderHolder?.let { helper.submitTask { it.execute() } }
+                var timeoutToKilled = false
+                if (info.timeout != 0L) {
+                    logger.trace("waiting process with timeout, {}ms", info.timeout)
+                    if (!process.waitFor(info.timeout, TimeUnit.MILLISECONDS)) {
+                        logger.debug("process timeout, killing")
+                        timeoutToKilled = true
+                        helper.handleError(TimeoutException("process execution timeout"))
+                        kill()
+                    }
+                }
+                logger.trace("waiting process terminate")
+                val exitCode = process.waitFor()
+                val endAt = Instant.now()
+                logger.trace("process terminated, exit code: {}", exitCode)
+                logger.trace("wait all handler terminate")
+                stdinJob?.getOrNull()
+                stdoutJob?.getOrNull()
+                stderrJob?.getOrNull()
+                errorRecorderJob?.getOrNull()
+                stdinJob?.getOrNull()
+                logger.trace("all handler terminated")
+                val rootException = helper.rootException
+                if (rootException != null) {
+                    logger.trace("exception caught in handlers")
+                    val executionInfo = ExecutionInfo(
+                        pid = pid,
+                        startAt = startAt,
+                        endAt = endAt,
+                        exitCode = exitCode,
+                        timeoutToKilled = timeoutToKilled,
+                    )
+                    throw CmdlineHandlerException(
+                        rootException,
+                        commandInfo = info,
+                        executionInfo = executionInfo,
+                        stdinHandlerThrows = stdinJob?.exceptionOrNull(),
+                        stdoutHandlerThrows = stdoutJob?.exceptionOrNull(),
+                        stderrHandlerThrows = stderrJob?.exceptionOrNull(),
+                    )
+                }
 
-
-        private val mainThreadMdc = MdcManager.dump()
-
-        private fun <T, R> setupHandler(
-            handlerName: String,
-            handler: (T) -> R,
-            stream: T
-        ): FutureTask<R> where T : AutoCloseable {
-            logger.trace("setup handler {}", handlerName)
-            val task = FutureTask {
-                val old = MdcManager.dump()
-                try {
-                    MdcManager.restore(mainThreadMdc)
-                    return@FutureTask stream.use(handler)
-                } catch (th: Throwable) {
-                    logger.debug("handler {} throws exception: {}", handlerName, th.lazyToString())
-                    exceptionManager.add(th)
+                return ExecutionResult<SO, SE>(
+                    cmdline = info.commandLine,
+                    exitCode = exitCode,
+                    _stdoutValue = stdoutJob?.getOrNull(),
+                    _stderrValue = stderrJob?.getOrNull(),
+                    startAt = startAt.epochSecond,
+                    endAt = endAt.epochSecond,
+                    stderrSnapshot = errorRecorderJob?.getOrNull()?.toString().orEmpty(),
+                )
+            } catch (th: Throwable) {
+                runCatching {
                     kill()
-                    throw th
-                } finally {
-                    MdcManager.restore(old)
-                }
+                    helper.handleError(th)
+                    closeAllStream()
+                }.onFailure { logger.debug("cleanup failed", it) }
+                throw th
             }
-            asyncTasks.add(task)
-            executor.execute(task)
-            return task
+        }
+
+        private fun closeAllStream() {
+            logger.trace("close all opened stream")
+            runCatching { stdinHolder?.stream?.close() }.onFailure { logger.debug("fail to close stdin", it) }
+            runCatching { stdoutHolder?.stream?.close() }.onFailure { logger.debug("fail to close stdout", it) }
+            runCatching { stderrHolder?.stream?.close() }.onFailure { logger.debug("fail to close stderr", it) }
+            runCatching { errorRecorderHolder?.stream?.close() }.onFailure { logger.debug("fail to close stderr", it) }
         }
 
         private fun kill() {
-            try {
-                killProcessAndAllDescendants()
-            } finally {
-                logger.trace("killing main process")
-                process.destroyForcibly()
+            if (info.killSubprocess) runCatching { killAllDescendants() }
+            logger.trace("kill main process")
+            process.destroyForcibly()
+        }
+
+        private fun killAllDescendants() {
+            logger.trace("kill all descendants")
+            val children = runCatching { process.descendants() }
+                .onFailure { logger.debug("list descendant process is unsupported: {}", it.lazyMessage()) }
+                .getOrNull() ?: return
+            for (cp in children) {
+                try {
+                    val rs = cp.destroyForcibly()
+                    logger.trace("kill sub-process pid {}, successful: {}", cp.safeLazyPidString(), rs)
+                } catch (e: Exception) {
+                    logger.trace("fail to kill descendant process, pid {}", cp.safeLazyPidString(), e)
+                }
             }
         }
 
-        private fun killProcessAndAllDescendants() {
-            try {
-                for (it in process.descendants()) {
-                    try {
-                        val pid = runCatching { it.pid() }.getOrElse { -1 }
-                        val successful = it.destroyForcibly()
-                        logger.trace("kill sub-process pid {}, {}", pid, if (successful) "successful" else "failed")
-                    } catch (e: Exception) {
-                        logger.trace("exception caught during sub-process killing", e)
-                    }
-                }
-            } catch (e: UnsupportedOperationException) {
-                logger.debug("cannot kill descendants process, the operation is not supported: {}", e.lazyMessage())
-            }
+        private fun createErrorRecorderHandler(): InputHandler<String> = { input ->
+            ErrorRecorder().also { recorder -> input.reader(info.ioCharset).copyTo(recorder.writer) }.toString()
         }
 
     }
+
+    private class Holder<T : AutoCloseable, R>(val name: String, val stream: T, val handler: (T) -> R) {
+        fun execute() = try {
+            logger.trace("handler {} begin", name)
+            stream.use(handler)
+        } catch (th: Throwable) {
+            logger.trace("handler {} caught", th)
+            throw th
+        } finally {
+            logger.trace("handler {} end", name)
+        }
+    }
+
 }
+
+private fun ProcessHandle.safeLazyPidString() = object {
+    override fun toString(): String = runCatching { pid() }.getOrElse { -1 }.toString()
+}
+
+@Suppress("NOTHING_TO_INLINE")
+private inline fun <T> FutureTask<T>.getOrNull() = runCatching { get() }.getOrNull()
+
+@Suppress("NOTHING_TO_INLINE")
+private inline fun <T> FutureTask<T>.exceptionOrNull() = runCatching { get() }.exceptionOrNull()

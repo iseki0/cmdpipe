@@ -21,8 +21,16 @@ internal object TextualFormatter {
             } else {
                 appendLine(t("cmdinfo.workingDir").messageFormat(data.workingDirectory))
             }
+            if (data.timeout!=0L){
+                appendLine(t("cmdinfo.timeout").messageFormat(data.timeout))
+            }
+            appendLine(t("cmdinfo.inheritIO").messageFormat(data.inheritIO.toString()))
+            appendLine(t("cmdinfo.charset").messageFormat(data.ioCharset.name()))
             appendLine(t("cmdinfo.envtitle").messageFormat(data.additionalEnvVars.size))
-            for (it in data.additionalEnvVars) appendLine(it.toString())
+            for (it in data.additionalEnvVars) {
+                append("  ")
+                appendLine(it.toString())
+            }
         }
     }
 

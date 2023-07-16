@@ -26,10 +26,10 @@ interface Cmdline<SO, SE> {
 
     companion object {
         @JvmStatic
-        fun of(cmdArray: Collection<String>): Cmdline<Nothing, Nothing> = CmdlineImpl(cmdArray)
+        fun of(cmdArray: Collection<String>): Cmdline<Nothing, Nothing> = CommandImpl(cmdArray.toList())
 
         @JvmStatic
-        fun of(vararg cmdArray: String): Cmdline<Nothing, Nothing> = CmdlineImpl(listOf(*cmdArray))
+        fun of(vararg cmdArray: String): Cmdline<Nothing, Nothing> = CommandImpl(cmdArray.toList())
     }
 }
 
