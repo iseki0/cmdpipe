@@ -24,6 +24,8 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions.freeCompilerArgs += "-Xcontext-receivers"
+    kotlinOptions.freeCompilerArgs += "-Xassertions=jvm"
+    kotlinOptions.freeCompilerArgs += "-Xlambdas=indy"
     kotlinOptions.jvmTarget = "17"
     kotlinJavaToolchain.toolchain.use(javaToolchains.launcherFor { configure() })
 }
