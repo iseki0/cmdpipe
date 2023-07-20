@@ -6,7 +6,6 @@ plugins {
     id("org.jetbrains.kotlinx.kover") version "0.7.2"
     signing
     `maven-publish`
-    jacoco
 }
 
 allprojects {
@@ -21,13 +20,6 @@ allprojects {
 
 java {
     withSourcesJar()
-}
-
-tasks.withType<JacocoReport> {
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-    }
 }
 
 dependencies {
