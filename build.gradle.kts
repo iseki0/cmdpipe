@@ -1,5 +1,9 @@
 plugins {
-    `kotlin-convention`
+    kotlin("jvm") version "1.9.0"
+    kotlin("plugin.serialization") version "1.9.0"
+    id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.2"
+    id("org.jetbrains.dokka") version "1.8.20"
+    id("org.jetbrains.kotlinx.kover") version "0.7.2"
     signing
     `maven-publish`
     jacoco
@@ -8,6 +12,11 @@ plugins {
 allprojects {
     group = "space.iseki.cmdpipe"
     version = "0.4.1-SNAPSHOT"
+
+    repositories {
+        mavenCentral()
+    }
+
 }
 
 java {
@@ -22,9 +31,38 @@ tasks.withType<JacocoReport> {
 }
 
 dependencies {
+    implementation(kotlin("stdlib"))
+    testImplementation(kotlin("test"))
     compileOnly(libs.slf4j.api)
     testImplementation(libs.slf4j.api)
     testImplementation(libs.logback.classic)
+}
+
+fun JavaToolchainSpec.configure() {
+    languageVersion.set(JavaLanguageVersion.of(17))
+}
+
+tasks.withType<AbstractArchiveTask>().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    sourceCompatibility = "17"
+    targetCompatibility = "17"
+    javaCompiler.set(javaToolchains.compilerFor { configure() })
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    kotlinOptions.freeCompilerArgs += "-Xcontext-receivers"
+    kotlinOptions.freeCompilerArgs += "-Xassertions=jvm"
+    kotlinOptions.freeCompilerArgs += "-Xlambdas=indy"
+    kotlinOptions.jvmTarget = "17"
+    kotlinJavaToolchain.toolchain.use(javaToolchains.launcherFor { configure() })
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 publishing {
