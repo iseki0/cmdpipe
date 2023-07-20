@@ -3,7 +3,6 @@ plugins {
     signing
     `maven-publish`
     jacoco
-    id("org.sonarqube") version "4.2.1.3168"
 }
 
 allprojects {
@@ -19,14 +18,6 @@ tasks.withType<JacocoReport> {
     reports {
         xml.required.set(true)
         html.required.set(true)
-    }
-}
-
-sonar {
-    properties {
-        property("sonar.projectKey", "iseki0_cmdpipe")
-        property("sonar.organization", "iseki0")
-        property("sonar.host.url", "https://sonarcloud.io")
     }
 }
 
