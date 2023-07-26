@@ -10,7 +10,7 @@ plugins {
 
 allprojects {
     group = "space.iseki.cmdpipe"
-    version = "0.4.1-SNAPSHOT"
+    version = "0.4.2-SNAPSHOT"
 
     repositories {
         mavenCentral()
