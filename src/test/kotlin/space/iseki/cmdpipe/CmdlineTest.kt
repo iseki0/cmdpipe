@@ -50,9 +50,10 @@ class CmdlineTest {
             runBlocking {
                 withTimeout(1000){
                     runInterruptible {
-                        val t = assertThrows<InterruptedException> {
+                        val t = assertThrows<CmdlineInterruptedException> {
                             cmdline(cmd2).execute()
                         }
+                        require(Thread.interrupted())
                         println(t)
                         t.printStackTrace(System.out)
                     }

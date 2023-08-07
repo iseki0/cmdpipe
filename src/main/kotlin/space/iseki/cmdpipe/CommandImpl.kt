@@ -64,16 +64,6 @@ internal class CommandImpl<SO, SE>(
     override fun handleStdin(handler: OutputHandler<Unit>): Cmdline<SO, SE> =
         CommandImpl(info, executor, handler, stdoutHandler, stderrHandler)
 
-    /**
-     *
-     * @see ProcessBuilder.environment
-     * @see ProcessBuilder.start
-     * @throws CmdlineHandlerException
-     * @throws UnsupportedOperationException
-     * @throws IllegalArgumentException
-     * @throws InterruptedException
-     */
-    @Throws(InterruptedException::class)
     override fun execute(): ExecutionResult<SO, SE> {
         if (info.commandLine.isEmpty()) {
             throw IllegalArgumentException("command line is empty")
@@ -88,7 +78,10 @@ internal class CommandImpl<SO, SE>(
             logger.debug("process started, pid: {}", process.pid())
             return Running(process).doHandle()
         } catch (e: IOException) {
-            throw RuntimeException(e)
+            throw CmdlineException("unhandled I/O exception during the commandline execution", e)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt() // recover the state
+            throw CmdlineInterruptedException()
         }
     }
 
@@ -195,7 +188,6 @@ internal class CommandImpl<SO, SE>(
             kill()
         }
 
-        @Throws(InterruptedException::class, IOException::class)
         fun doHandle(): ExecutionResult<SO, SE> {
             var allPipeClosed = false
             try {
@@ -263,6 +255,8 @@ internal class CommandImpl<SO, SE>(
                     commandInfo = info,
                     executionInfo = executionInfo,
                 )
+            }catch (e: RejectedExecutionException){
+                throw CmdlineException("internal executor has rejected to execute handler task", e)
             } finally {
                 if (!allPipeClosed) {
                     logger.trace("cleaning...")

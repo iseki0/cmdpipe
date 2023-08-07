@@ -6,5 +6,4 @@ class CmdlineTimeoutException internal constructor(
     val stdinHandlerThrows: Throwable?,
     val stdoutHandlerThrows: Throwable?,
     val stderrHandlerThrows: Throwable?,
-) : RuntimeException("command execution timeout") {
-}
+) : CmdlineException("command execution timeout")
