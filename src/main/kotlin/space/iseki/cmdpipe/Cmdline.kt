@@ -61,8 +61,8 @@ interface Cmdline<SO, SE> {
      * @throws CmdlineHandlerException when any of the handlers(stdin, stdout, stderr) throws
      * @throws CmdlineInterruptedException when the command execution was interrupted. In that case, the *interrupted status* will not be cleared. See also: [Thread.interrupted]
      * @throws CmdlineTimeoutException when the command execution timeout
-     * @throws UnsupportedOperationException depends on the underlying implementations
      * @throws CmdlineException
+     * @throws UnsupportedOperationException depends on the underlying implementations
      * @throws IllegalArgumentException when the commandline is empty, or any other suitable reasons
      * @throws
      */
