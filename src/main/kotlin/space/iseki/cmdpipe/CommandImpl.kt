@@ -255,7 +255,7 @@ internal class CommandImpl<SO, SE>(
                     commandInfo = info,
                     executionInfo = executionInfo,
                 )
-            }catch (e: RejectedExecutionException){
+            } catch (e: RejectedExecutionException) {
                 throw CmdlineException("internal executor has rejected to execute handler task", e)
             } finally {
                 if (!allPipeClosed) {
