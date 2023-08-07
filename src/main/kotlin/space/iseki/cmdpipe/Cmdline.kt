@@ -20,6 +20,17 @@ interface Cmdline<SO, SE> {
     fun <SO> handleStdout(handler: InputHandler<SO>): Cmdline<SO, SE>
     fun <SE> handleStderr(handler: InputHandler<SE>): Cmdline<SO, SE>
     fun handleStdin(handler: OutputHandler<Unit>): Cmdline<SO, SE>
+
+    /**
+     *
+     * @see ProcessBuilder.environment
+     * @see ProcessBuilder.start
+     * @throws CmdlineHandlerException
+     * @throws UnsupportedOperationException
+     * @throws IllegalArgumentException
+     * @throws InterruptedException
+     */
+    @Throws(InterruptedException::class)
     fun execute(): ExecutionResult<SO, SE>
     fun inheritIO(f: Boolean): Cmdline<SO, SE> = TODO()
     fun inheritIO() = inheritIO(true)

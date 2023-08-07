@@ -9,7 +9,8 @@ class ExecutionResult<SO, SE> internal constructor(
     private val _stderrValue: Any?,
     private val startAt: Long,
     private val endAt: Long,
-    val stderrSnapshot: String = "",
+    val commandInfo: CommandInfo,
+    val executionInfo: ExecutionInfo,
 ) {
     val usedTimeDuration: Duration
         get() = Duration.ofMillis(startAt - endAt)
@@ -22,5 +23,7 @@ class ExecutionResult<SO, SE> internal constructor(
         @Suppress("UNCHECKED_CAST")
         get() = _stderrValue as SE
 
+    val stderrSnapshot: String
+        get() = executionInfo.stderrSnapshot
 }
 

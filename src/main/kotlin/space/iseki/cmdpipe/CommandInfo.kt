@@ -1,32 +1,50 @@
+@file:JvmName("-CommandInfo")
+
 package space.iseki.cmdpipe
 
 import java.io.File
 import java.nio.charset.Charset
 
-data class CommandInfo internal constructor(
-    /**
-     * commandline
-     */
-    val commandLine: List<String> = emptyList(),
-    /**
-     * working directory. If the property is null, Java default value (current working directory) will be used
-     */
-    val workingDirectory: File? = null,
-    /**
-     * environment variables, only containing specified
-     */
-    val additionalEnvVars: List<EnvVar> = emptyList(),
-    /**
-     * zero will be interpreted as no timeout, milliseconds
-     */
-    val timeout: Long = 0,
-    val inheritIO: Boolean = false,
-    val killSubprocess: Boolean = true,
-    val enableDefaultErrorRecorder: Boolean = true,
-    val ioCharset: Charset = defaultCharset,
-) {
-    private companion object {
-        val defaultCharset: Charset = Charset.defaultCharset()
-    }
-}
+private val defaultCharset: Charset = Charset.defaultCharset()
 
+@JvmName("-commandInfoOf")
+internal fun commandInfoOf(
+    commandLine: List<String> = emptyList(),
+    workingDirectory: File? = null,
+    additionalEnvVars: List<EnvVar> = emptyList(),
+    timeout: Long = 0,
+    inheritIO: Boolean = false,
+    killSubprocess: Boolean = true,
+    enableDefaultErrorRecorder: Boolean = true,
+    ioCharset: Charset = defaultCharset,
+): CommandInfo = CommandInfo(
+    commandLine,
+    workingDirectory,
+    additionalEnvVars,
+    timeout,
+    inheritIO,
+    killSubprocess,
+    enableDefaultErrorRecorder,
+    ioCharset,
+)
+
+@JvmName("-copy")
+internal fun CommandInfo.copy(
+    commandLine: List<String> = commandLine(),
+    workingDirectory: File? = workingDirectory(),
+    additionalEnvVars: List<EnvVar> = additionalEnvVars(),
+    timeout: Long = timeout(),
+    inheritIO: Boolean = inheritIO(),
+    killSubprocess: Boolean = killSubprocess(),
+    enableDefaultErrorRecorder: Boolean = enableDefaultErrorRecorder(),
+    ioCharset: Charset = ioCharset(),
+) = CommandInfo(
+    commandLine,
+    workingDirectory,
+    additionalEnvVars,
+    timeout,
+    inheritIO,
+    killSubprocess,
+    enableDefaultErrorRecorder,
+    ioCharset
+)

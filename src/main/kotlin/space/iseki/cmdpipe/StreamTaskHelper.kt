@@ -38,37 +38,28 @@ internal class StreamTaskHelper(
                 MdcManager.restore(old)
             }
         }
+        tasks.add(taskFuture)
         try {
             executor.execute(taskFuture)
         } catch (th: Throwable) {
             handleError(th)
             throw th
         }
-        tasks.add(taskFuture)
         return taskFuture
     }
 
     fun handleError(th: Throwable) {
-        Thread.interrupted() // clear interrupt signal
         if (!ROOT_EXCEPTION.compareAndSet(this, null, th)) {
             rootException?.addSuppressed(th)
             return
         }
         handleError0()
-        Thread.interrupted()
         onError()
-    }
-
-    fun waitAll() {
-        for (task in synchronized(this) { tasks.toList() }) {
-            runCatching { task.get() }
-        }
     }
 
     @Synchronized
     private fun handleError0() {
         for (task in tasks) {
-            Thread.interrupted() // clear interrupt signal
             runCatching { task.cancel(true) }
         }
         tasks.clear() // release

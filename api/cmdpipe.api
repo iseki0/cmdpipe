@@ -43,68 +43,58 @@ public final class space/iseki/cmdpipe/CmdlineHandlerException : java/lang/Runti
 	public final fun getStdoutHandlerThrows ()Ljava/lang/Throwable;
 }
 
-public final class space/iseki/cmdpipe/CommandInfo {
-	public fun <init> ()V
-	public final fun component1 ()Ljava/util/List;
-	public final fun component2 ()Ljava/io/File;
-	public final fun component3 ()Ljava/util/List;
-	public final fun component4 ()J
-	public final fun component5 ()Z
-	public final fun component6 ()Z
-	public final fun component7 ()Z
-	public final fun component8 ()Ljava/nio/charset/Charset;
-	public final fun copy (Ljava/util/List;Ljava/io/File;Ljava/util/List;JZZZLjava/nio/charset/Charset;)Lspace/iseki/cmdpipe/CommandInfo;
-	public static synthetic fun copy$default (Lspace/iseki/cmdpipe/CommandInfo;Ljava/util/List;Ljava/io/File;Ljava/util/List;JZZZLjava/nio/charset/Charset;ILjava/lang/Object;)Lspace/iseki/cmdpipe/CommandInfo;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAdditionalEnvVars ()Ljava/util/List;
-	public final fun getCommandLine ()Ljava/util/List;
-	public final fun getEnableDefaultErrorRecorder ()Z
-	public final fun getInheritIO ()Z
-	public final fun getIoCharset ()Ljava/nio/charset/Charset;
-	public final fun getKillSubprocess ()Z
-	public final fun getTimeout ()J
-	public final fun getWorkingDirectory ()Ljava/io/File;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+public final class space/iseki/cmdpipe/CmdlineTimeoutException : java/lang/RuntimeException {
+	public final fun getCommandInfo ()Lspace/iseki/cmdpipe/CommandInfo;
+	public final fun getExecutionInfo ()Lspace/iseki/cmdpipe/ExecutionInfo;
+	public final fun getStderrHandlerThrows ()Ljava/lang/Throwable;
+	public final fun getStdinHandlerThrows ()Ljava/lang/Throwable;
+	public final fun getStdoutHandlerThrows ()Ljava/lang/Throwable;
 }
 
-public final class space/iseki/cmdpipe/EnvVar {
+public final class space/iseki/cmdpipe/CommandInfo : java/lang/Record {
+	public fun <init> (Ljava/util/List;Ljava/io/File;Ljava/util/List;JZZZLjava/nio/charset/Charset;)V
+	public fun additionalEnvVars ()Ljava/util/List;
+	public fun commandLine ()Ljava/util/List;
+	public fun enableDefaultErrorRecorder ()Z
+	public final fun equals (Ljava/lang/Object;)Z
+	public final fun hashCode ()I
+	public fun inheritIO ()Z
+	public fun ioCharset ()Ljava/nio/charset/Charset;
+	public fun killSubprocess ()Z
+	public fun timeout ()J
+	public final fun toString ()Ljava/lang/String;
+	public fun workingDirectory ()Ljava/io/File;
+}
+
+public final class space/iseki/cmdpipe/EnvVar : java/lang/Record {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Z)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Lkotlin/Pair;)V
-	public final fun component1 ()Ljava/lang/String;
-	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Z
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Z)Lspace/iseki/cmdpipe/EnvVar;
-	public static synthetic fun copy$default (Lspace/iseki/cmdpipe/EnvVar;Ljava/lang/String;Ljava/lang/String;ZILjava/lang/Object;)Lspace/iseki/cmdpipe/EnvVar;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getConfidential ()Z
-	public final fun getName ()Ljava/lang/String;
-	public final fun getValue ()Ljava/lang/String;
-	public fun hashCode ()I
+	public fun confidential ()Z
+	public final fun equals (Ljava/lang/Object;)Z
+	public final fun hashCode ()I
+	public fun name ()Ljava/lang/String;
 	public fun toString ()Ljava/lang/String;
+	public fun value ()Ljava/lang/String;
 }
 
-public final class space/iseki/cmdpipe/ExecutionInfo {
-	public final fun component1 ()J
-	public final fun component2 ()Ljava/time/Instant;
-	public final fun component3 ()Ljava/time/Instant;
-	public final fun component4 ()Ljava/lang/Integer;
-	public final fun component5 ()Z
-	public final fun copy (JLjava/time/Instant;Ljava/time/Instant;Ljava/lang/Integer;Z)Lspace/iseki/cmdpipe/ExecutionInfo;
-	public static synthetic fun copy$default (Lspace/iseki/cmdpipe/ExecutionInfo;JLjava/time/Instant;Ljava/time/Instant;Ljava/lang/Integer;ZILjava/lang/Object;)Lspace/iseki/cmdpipe/ExecutionInfo;
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getEndAt ()Ljava/time/Instant;
-	public final fun getExitCode ()Ljava/lang/Integer;
-	public final fun getPid ()J
-	public final fun getStartAt ()Ljava/time/Instant;
-	public final fun getTimeoutToKilled ()Z
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+public final class space/iseki/cmdpipe/ExecutionInfo : java/lang/Record {
+	public fun <init> (JLjava/time/Instant;Ljava/time/Instant;Ljava/lang/Integer;ZLjava/lang/String;)V
+	public fun endAt ()Ljava/time/Instant;
+	public final fun equals (Ljava/lang/Object;)Z
+	public fun exitCode ()Ljava/lang/Integer;
+	public final fun hashCode ()I
+	public fun pid ()J
+	public fun startAt ()Ljava/time/Instant;
+	public fun stderrSnapshot ()Ljava/lang/String;
+	public fun timeoutToKilled ()Z
+	public final fun toString ()Ljava/lang/String;
 }
 
 public final class space/iseki/cmdpipe/ExecutionResult {
 	public final fun getCmdline ()Ljava/util/List;
+	public final fun getCommandInfo ()Lspace/iseki/cmdpipe/CommandInfo;
+	public final fun getExecutionInfo ()Lspace/iseki/cmdpipe/ExecutionInfo;
 	public final fun getExitCode ()I
 	public final fun getStderrSnapshot ()Ljava/lang/String;
 	public final fun getStderrValue ()Ljava/lang/Object;

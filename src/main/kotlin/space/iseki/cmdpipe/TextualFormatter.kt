@@ -19,7 +19,7 @@ internal object TextualFormatter {
             if (data.workingDirectory == null) {
                 appendLine(t("cmdinfo.workingDir.unset"))
             } else {
-                appendLine(t("cmdinfo.workingDir").messageFormat(data.workingDirectory))
+                appendLine(t("cmdinfo.workingDir").messageFormat(data.workingDirectory!!))
             }
             if (data.timeout!=0L){
                 appendLine(t("cmdinfo.timeout").messageFormat(data.timeout))
@@ -44,7 +44,7 @@ internal object TextualFormatter {
             }
             if (data.endAt != null) {
                 val dur = runCatching { Duration.between(data.startAt, data.endAt).toString() }.getOrNull() ?: "-"
-                appendLine(t("exeinfo.timing").messageFormat(data.startAt, data.endAt, dur))
+                appendLine(t("exeinfo.timing").messageFormat(data.startAt, data.endAt!!, dur))
             } else {
                 appendLine(t("exeinfo.timing.inProgress").messageFormat(data.startAt))
             }

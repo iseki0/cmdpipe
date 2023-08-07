@@ -1,5 +1,8 @@
 package space.iseki.cmdpipe
 
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.assertThrows
 import java.nio.charset.Charset
 import kotlin.test.Test
@@ -37,7 +40,31 @@ class CmdlineTest {
     fun test3() {
         assertThrows<CmdlineHandlerException> {
             cmdline(cmd).handleStdout { error("1") }.withEnvironment("a" to "b").execute()
-        }.printStackTrace()
+        }.printStackTrace(System.out)
     }
 
+
+    @Test
+    fun testCancel(){
+        assertThrows<kotlinx.coroutines.TimeoutCancellationException> {
+            runBlocking {
+                withTimeout(1000){
+                    runInterruptible {
+                        val t = assertThrows<InterruptedException> {
+                            cmdline(cmd2).execute()
+                        }
+                        println(t)
+                        t.printStackTrace(System.out)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun testTimeout(){
+        assertThrows<CmdlineTimeoutException> {
+            println(cmdline(cmd2).withTimeout(1000).execute())
+        }.printStackTrace(System.out)
+    }
 }

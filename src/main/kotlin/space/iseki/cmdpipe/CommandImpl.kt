@@ -4,15 +4,12 @@ package space.iseki.cmdpipe
 
 import space.iseki.cmdpipe.logging.Logger
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.time.Instant
-import java.util.concurrent.Executor
-import java.util.concurrent.Executors
-import java.util.concurrent.FutureTask
-import java.util.concurrent.ThreadFactory
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
+import java.util.concurrent.*
+import kotlin.jvm.optionals.getOrNull
 
 internal class CommandImpl<SO, SE>(
     private val info: CommandInfo,
@@ -24,7 +21,7 @@ internal class CommandImpl<SO, SE>(
 
     companion object {
         operator fun invoke(cmdline: List<String>) =
-            CommandImpl<Nothing, Nothing>(info = CommandInfo(commandLine = cmdline))
+            CommandImpl<Nothing, Nothing>(info = commandInfoOf(commandLine = cmdline))
 
         @JvmStatic
         private val logger = Logger.getLogger(CommandImpl::class.java)
@@ -74,25 +71,30 @@ internal class CommandImpl<SO, SE>(
      * @throws CmdlineHandlerException
      * @throws UnsupportedOperationException
      * @throws IllegalArgumentException
-     * @throws java.io.IOException
+     * @throws InterruptedException
      */
+    @Throws(InterruptedException::class)
     override fun execute(): ExecutionResult<SO, SE> {
         if (info.commandLine.isEmpty()) {
             throw IllegalArgumentException("command line is empty")
         }
         logger.debug("executing command: {} at {}", info.commandLine, info.workingDirectory)
-        val pb = ProcessBuilder()
-        logger.trace("configuring process builder {}", pb)
-        configureProcessBuilder(pb)
-        logger.trace("configuring completed")
-        val process = pb.start()
-        logger.debug("process started, pid: {}", process.pid())
-        return Running(process).doHandle()
+        try {
+            val pb = ProcessBuilder()
+            logger.trace("configuring process builder {}", pb)
+            configureProcessBuilder(pb)
+            logger.trace("configuring completed")
+            val process = pb.start()
+            logger.debug("process started, pid: {}", process.pid())
+            return Running(process).doHandle()
+        } catch (e: IOException) {
+            throw RuntimeException(e)
+        }
     }
 
     private fun configureProcessBuilder(pb: ProcessBuilder) {
         pb.command(info.commandLine)
-        if (info.workingDirectory != null) configureDir(pb, info.workingDirectory)
+        info.workingDirectory?.let { configureDir(pb, it) }
         configureEnviron(pb, info.additionalEnvVars)
         configureRedirect(pb)
     }
@@ -123,7 +125,9 @@ internal class CommandImpl<SO, SE>(
         if (env.isEmpty()) return
         logger.trace("configuring process environment variables")
         val map = pb.environment()
-        for ((k, v) in env) {
+        for (env in env) {
+            val k = env.name
+            val v = env.value
             if (v == null) {
                 logger.trace("del envvar {}", k)
                 map.remove(k)
@@ -191,7 +195,9 @@ internal class CommandImpl<SO, SE>(
             kill()
         }
 
+        @Throws(InterruptedException::class, IOException::class)
         fun doHandle(): ExecutionResult<SO, SE> {
+            var allPipeClosed = false
             try {
                 val stdinJob = stdinHolder?.let { helper.submitTask { it.execute() } }
                 val stdoutJob = stdoutHolder?.let { helper.submitTask { it.execute() } }
@@ -203,7 +209,7 @@ internal class CommandImpl<SO, SE>(
                     if (!process.waitFor(info.timeout, TimeUnit.MILLISECONDS)) {
                         logger.debug("process timeout, killing")
                         timeoutToKilled = true
-                        helper.handleError(TimeoutException("process execution timeout"))
+                        helper.handleError(CancellationException("process execution timeout"))
                         kill()
                     }
                 }
@@ -219,15 +225,24 @@ internal class CommandImpl<SO, SE>(
                 stdinJob?.getOrNull()
                 logger.trace("all handler terminated")
                 val rootException = helper.rootException
+                val executionInfo = executionInfoOf(
+                    pid = pid,
+                    startAt = startAt,
+                    endAt = endAt,
+                    exitCode = exitCode,
+                    timeoutToKilled = timeoutToKilled,
+                )
+                if (timeoutToKilled) {
+                    throw CmdlineTimeoutException(
+                        commandInfo = info,
+                        executionInfo = executionInfo,
+                        stdinHandlerThrows = stdinJob?.exceptionOrNull(),
+                        stdoutHandlerThrows = stdoutJob?.exceptionOrNull(),
+                        stderrHandlerThrows = stderrJob?.exceptionOrNull(),
+                    )
+                }
                 if (rootException != null) {
                     logger.trace("exception caught in handlers")
-                    val executionInfo = ExecutionInfo(
-                        pid = pid,
-                        startAt = startAt,
-                        endAt = endAt,
-                        exitCode = exitCode,
-                        timeoutToKilled = timeoutToKilled,
-                    )
                     throw CmdlineHandlerException(
                         rootException,
                         commandInfo = info,
@@ -237,7 +252,7 @@ internal class CommandImpl<SO, SE>(
                         stderrHandlerThrows = stderrJob?.exceptionOrNull(),
                     )
                 }
-
+                allPipeClosed = true
                 return ExecutionResult<SO, SE>(
                     cmdline = info.commandLine,
                     exitCode = exitCode,
@@ -245,15 +260,17 @@ internal class CommandImpl<SO, SE>(
                     _stderrValue = stderrJob?.getOrNull(),
                     startAt = startAt.epochSecond,
                     endAt = endAt.epochSecond,
-                    stderrSnapshot = errorRecorderJob?.getOrNull()?.toString().orEmpty(),
+                    commandInfo = info,
+                    executionInfo = executionInfo,
                 )
-            } catch (th: Throwable) {
-                runCatching {
-                    kill()
-                    helper.handleError(th)
-                    closeAllStream()
-                }.onFailure { logger.debug("cleanup failed", it) }
-                throw th
+            } finally {
+                if (!allPipeClosed) {
+                    logger.trace("cleaning...")
+                    runCatching {
+                        kill()
+                        closeAllStream()
+                    }.onFailure { logger.debug("cleanup failed", it) }
+                }
             }
         }
 
@@ -277,11 +294,12 @@ internal class CommandImpl<SO, SE>(
                 .onFailure { logger.debug("list descendant process is unsupported: {}", it.lazyMessage()) }
                 .getOrNull() ?: return
             for (cp in children) {
-                try {
+                val cpPid = runCatching { cp.pid() }.getOrElse { -1 }
+                val cpCommand = cp.info().commandLine().getOrNull()
+                    ?: cp.info().command().getOrNull().orEmpty()
+                runCatching {
                     val rs = cp.destroyForcibly()
-                    logger.trace("kill sub-process pid {}, successful: {}", cp.safeLazyPidString(), rs)
-                } catch (e: Exception) {
-                    logger.trace("fail to kill descendant process, pid {}", cp.safeLazyPidString(), e)
+                    logger.trace("kill sub-process pid {}, command: {}, successful: {}", cpPid, cpCommand, rs)
                 }
             }
         }
@@ -297,17 +315,13 @@ internal class CommandImpl<SO, SE>(
             logger.trace("handler {} begin", name)
             stream.use(handler)
         } catch (th: Throwable) {
-            logger.trace("handler {} caught", th)
+            logger.trace("handler {} caught", name, th)
             throw th
         } finally {
             logger.trace("handler {} end", name)
         }
     }
 
-}
-
-private fun ProcessHandle.safeLazyPidString() = object {
-    override fun toString(): String = runCatching { pid() }.getOrElse { -1 }.toString()
 }
 
 @Suppress("NOTHING_TO_INLINE")

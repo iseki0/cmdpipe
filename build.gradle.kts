@@ -1,4 +1,5 @@
 plugins {
+    `java-library`
     kotlin("jvm") version "1.9.0"
     kotlin("plugin.serialization") version "1.9.0"
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.2"
@@ -10,7 +11,7 @@ plugins {
 
 allprojects {
     group = "space.iseki.cmdpipe"
-    version = "0.4.2-SNAPSHOT"
+    version = "0.5.0-SNAPSHOT"
 
     repositories {
         mavenCentral()
@@ -26,8 +27,10 @@ dependencies {
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
     compileOnly(libs.slf4j.api)
+    compileOnly(libs.checker.qual)
     testImplementation(libs.slf4j.api)
     testImplementation(libs.logback.classic)
+    testImplementation(libs.kotlinx.coroutine.core)
 }
 
 fun JavaToolchainSpec.configure() {
