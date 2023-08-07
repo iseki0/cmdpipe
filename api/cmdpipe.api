@@ -29,21 +29,24 @@ public final class space/iseki/cmdpipe/Cmdline$Companion {
 
 public final class space/iseki/cmdpipe/Cmdline$DefaultImpls {
 	public static fun inheritIO (Lspace/iseki/cmdpipe/Cmdline;)Lspace/iseki/cmdpipe/Cmdline;
-	public static fun inheritIO (Lspace/iseki/cmdpipe/Cmdline;Z)Lspace/iseki/cmdpipe/Cmdline;
 	public static fun withCmdline (Lspace/iseki/cmdpipe/Cmdline;[Ljava/lang/String;)Lspace/iseki/cmdpipe/Cmdline;
 }
 
-public final class space/iseki/cmdpipe/CmdlineHandlerException : java/lang/RuntimeException {
-	public fun getCause ()Ljava/lang/Throwable;
+public class space/iseki/cmdpipe/CmdlineException : java/lang/RuntimeException {
+}
+
+public final class space/iseki/cmdpipe/CmdlineHandlerException : space/iseki/cmdpipe/CmdlineException {
 	public final fun getCommandInfo ()Lspace/iseki/cmdpipe/CommandInfo;
 	public final fun getExecutionInfo ()Lspace/iseki/cmdpipe/ExecutionInfo;
-	public fun getMessage ()Ljava/lang/String;
 	public final fun getStderrHandlerThrows ()Ljava/lang/Throwable;
 	public final fun getStdinHandlerThrows ()Ljava/lang/Throwable;
 	public final fun getStdoutHandlerThrows ()Ljava/lang/Throwable;
 }
 
-public final class space/iseki/cmdpipe/CmdlineTimeoutException : java/lang/RuntimeException {
+public final class space/iseki/cmdpipe/CmdlineInterruptedException : space/iseki/cmdpipe/CmdlineException {
+}
+
+public final class space/iseki/cmdpipe/CmdlineTimeoutException : space/iseki/cmdpipe/CmdlineException {
 	public final fun getCommandInfo ()Lspace/iseki/cmdpipe/CommandInfo;
 	public final fun getExecutionInfo ()Lspace/iseki/cmdpipe/ExecutionInfo;
 	public final fun getStderrHandlerThrows ()Ljava/lang/Throwable;
