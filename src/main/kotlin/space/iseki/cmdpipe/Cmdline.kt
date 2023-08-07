@@ -67,7 +67,7 @@ interface Cmdline<SO, SE> {
      * @throws
      */
     fun execute(): ExecutionResult<SO, SE>
-    fun inheritIO(f: Boolean): Cmdline<SO, SE> = TODO()
+    fun inheritIO(f: Boolean): Cmdline<SO, SE>
     fun inheritIO() = inheritIO(true)
 
     companion object {
