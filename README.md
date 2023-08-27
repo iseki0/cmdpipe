@@ -14,7 +14,7 @@ val r = cmdline("git", "clone", "https://github.com/iseki0/cmdpipe")
     .withTimeout(30_000)
     .execute()
 check(r.exitCode == 0) { "Clone failed" }
-println("stdout: ${r.stdoutValue}") // because we `readText`, so there's the text
+println("stdout: ${r.stdoutValue}") // because we `readText`, so here's the text
 println("stderr: ${r.stderrSnapshot}")
 ```
 
