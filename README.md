@@ -3,7 +3,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/space.iseki.cmdpipe/cmdpipe)](https://mvnrepository.com/artifact/space.iseki.cmdpipe/cmdpipe)
 
 
-Utils for commandline call
+Utils for command line call
 
 ## Example
 
