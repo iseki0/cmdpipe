@@ -10,12 +10,12 @@ public abstract interface class space/iseki/cmdpipe/Cmdline {
 	public abstract fun handleStderr (Lkotlin/jvm/functions/Function1;)Lspace/iseki/cmdpipe/Cmdline;
 	public abstract fun handleStdin (Lkotlin/jvm/functions/Function1;)Lspace/iseki/cmdpipe/Cmdline;
 	public abstract fun handleStdout (Lkotlin/jvm/functions/Function1;)Lspace/iseki/cmdpipe/Cmdline;
-	public abstract fun inheritIO ()Lspace/iseki/cmdpipe/Cmdline;
+	public fun inheritIO ()Lspace/iseki/cmdpipe/Cmdline;
 	public abstract fun inheritIO (Z)Lspace/iseki/cmdpipe/Cmdline;
 	public static fun of (Ljava/util/Collection;)Lspace/iseki/cmdpipe/Cmdline;
 	public static fun of ([Ljava/lang/String;)Lspace/iseki/cmdpipe/Cmdline;
 	public abstract fun withCmdline (Ljava/util/Collection;)Lspace/iseki/cmdpipe/Cmdline;
-	public abstract fun withCmdline ([Ljava/lang/String;)Lspace/iseki/cmdpipe/Cmdline;
+	public fun withCmdline ([Ljava/lang/String;)Lspace/iseki/cmdpipe/Cmdline;
 	public abstract fun withEnvironment ([Lkotlin/Pair;)Lspace/iseki/cmdpipe/Cmdline;
 	public abstract fun withExecutor (Ljava/util/concurrent/Executor;)Lspace/iseki/cmdpipe/Cmdline;
 	public abstract fun withTimeout (J)Lspace/iseki/cmdpipe/Cmdline;
