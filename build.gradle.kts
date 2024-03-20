@@ -26,6 +26,7 @@ java {
 dependencies {
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
+    compileOnly(libs.jetbrains.annotations)
     compileOnly(libs.slf4j.api)
     compileOnly(libs.checker.qual)
     testImplementation(libs.slf4j.api)
