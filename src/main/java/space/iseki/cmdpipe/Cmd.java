@@ -20,13 +20,6 @@ public interface Cmd extends AutoCloseable {
         return new StreamProcessorImpl<>(h);
     }
 
-    static @NotNull StreamProcessor<@NotNull OutputStream, Void> write(@NotNull Cmd.StreamProcessor.HVoid<@NotNull OutputStream> h) {
-        return new StreamProcessorImpl<>(h);
-    }
-
-    static @NotNull StreamProcessor<@NotNull InputStream, Void> read(@NotNull Cmd.StreamProcessor.HVoid<@NotNull InputStream> h) {
-        return new StreamProcessorImpl<>(h);
-    }
 
     @Override
     default void close() {
@@ -78,19 +71,33 @@ public interface Cmd extends AutoCloseable {
     }
 
     interface StreamProcessor<T, R> {
-
-        void process(@NotNull Cmd cmd, @NotNull Stdio stdio, T stream) throws Exception;
+        void process(@NotNull Ctx<T> ctx) throws Exception;
 
         @NotNull CompletableFuture<R> future();
 
-        @FunctionalInterface
-        interface HVoid<T> {
-            void handle(@NotNull Cmd cmd, @NotNull Stdio stdio, T stream) throws Exception;
+        interface Ctx<T> {
+            @NotNull Cmd cmd();
+
+            default @NotNull Cmd getCmd() {
+                return cmd();
+            }
+
+            @NotNull Stdio stdio();
+
+            default @NotNull Stdio getStdio() {
+                return stdio();
+            }
+
+            @NotNull T stream();
+
+            default @NotNull T getStream() {
+                return stream();
+            }
         }
 
         @FunctionalInterface
         interface H<T, R> {
-            R handle(@NotNull Cmd cmd, @NotNull Stdio stdio, T stream) throws Exception;
+            R handle(@NotNull Ctx<T> ctx) throws Exception;
         }
 
     }
@@ -344,9 +351,26 @@ public interface Cmd extends AutoCloseable {
 
                 <T> void startHandler(Stdio stdio, StreamProcessor<T, ?> p, T stream) {
                     Objects.requireNonNull(p);
+                    var cmd = this;
+                    var ctx = new StreamProcessor.Ctx<T>() {
+                        @Override
+                        public @NotNull Cmd cmd() {
+                            return cmd;
+                        }
+
+                        @Override
+                        public @NotNull Stdio stdio() {
+                            return stdio;
+                        }
+
+                        @Override
+                        public @NotNull T stream() {
+                            return stream;
+                        }
+                    };
                     executor.execute(() -> {
                         try {
-                            p.process(this, stdio, stream);
+                            p.process(ctx);
                         } catch (Throwable th) {
                             stopAll(true);
                         }
@@ -389,17 +413,10 @@ class StreamProcessorImpl<T, R> implements Cmd.StreamProcessor<T, R> {
         this.h = h;
     }
 
-    public StreamProcessorImpl(HVoid<T> h) {
-        this.h = (cmd, stdio, stream) -> {
-            h.handle(cmd, stdio, stream);
-            return null;
-        };
-    }
-
     @Override
-    public void process(@NotNull Cmd cmd, @NotNull Cmd.Stdio stdio, T stream) throws Exception {
+    public void process(@NotNull Ctx<T> ctx) throws Exception {
         try {
-            future.complete(h.handle(cmd, stdio, stream));
+            future.complete(h.handle(ctx));
         } catch (Throwable th) {
             future.completeExceptionally(th);
             throw th;
