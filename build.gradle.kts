@@ -3,7 +3,6 @@ plugins {
     kotlin("jvm") version "1.9.0"
     kotlin("plugin.serialization") version "1.9.0"
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.2"
-    id("org.jetbrains.dokka") version "1.8.20"
     id("org.jetbrains.kotlinx.kover") version "0.7.2"
     signing
     `maven-publish`
@@ -21,6 +20,7 @@ allprojects {
 
 java {
     withSourcesJar()
+    withJavadocJar()
 }
 
 dependencies {
@@ -82,13 +82,6 @@ publishing {
     publications {
         create<MavenPublication>("mavenJava") {
             from(components["java"])
-            val publication = this
-            val javadocJar = tasks.register("${publication.name}JavadocJar", Jar::class) {
-                archiveClassifier.set("javadoc")
-                from(tasks.dokkaJavadoc)
-                archiveBaseName.set("${archiveBaseName.get()}-${publication.name}")
-            }
-            artifact(javadocJar)
             pom {
                 name.set("cmdpipe")
                 description.set("Utils for commandline call")
