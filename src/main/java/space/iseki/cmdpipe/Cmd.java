@@ -12,10 +12,24 @@ import java.util.concurrent.ForkJoinPool;
 
 @SuppressWarnings("unused")
 public interface Cmd {
+    /**
+     * Create a write-stream processor.
+     *
+     * @param h   the handler
+     * @param <R> the result type
+     * @return the stream processor
+     */
     static <R> @NotNull StreamProcessor<@NotNull OutputStream, R> write(@NotNull Cmd.StreamProcessor.H<@NotNull OutputStream, R> h) {
         return new StreamProcessorImpl<>(h);
     }
 
+    /**
+     * Create a read-stream processor.
+     *
+     * @param h   the handler
+     * @param <R> the result type
+     * @return the stream processor
+     */
     static <R> @NotNull StreamProcessor<@NotNull InputStream, R> read(@NotNull Cmd.StreamProcessor.H<@NotNull InputStream, R> h) {
         return new StreamProcessorImpl<>(h);
     }
@@ -36,6 +50,11 @@ public interface Cmd {
      */
     @NotNull List<@NotNull Process> getProcesses();
 
+    /**
+     * Stop all processes of the command.
+     *
+     * @param force whether to force stop
+     */
     default void stopAll(boolean force) {
         var ps = getProcesses();
         getProcesses().forEach(p -> Builder.killTree(p, force));
@@ -47,18 +66,46 @@ public interface Cmd {
     }
 
 
+    /**
+     * The standard IO streams.
+     */
     enum Stdio {
-        STDIN(0), STDOUT(1), STDERR(2);
+        /**
+         * The standard input stream.
+         */
+        STDIN(0),
+        /**
+         * The standard output stream.
+         */
+        STDOUT(1),
+        /**
+         * The standard error stream.
+         */
+        STDERR(2),
+        ;
+        /**
+         * The FD of the standard IO stream.
+         */
         final int i;
 
         Stdio(int i) {
             this.i = i;
         }
 
+        /**
+         * Whether the stream is readable.
+         *
+         * @return true if the stream is readable
+         */
         public boolean isReadable() {
             return !isWriteable();
         }
 
+        /**
+         * Whether the stream is writeable.
+         *
+         * @return true if the stream is writeable
+         */
         public boolean isWriteable() {
             return this == STDIN;
         }
@@ -67,23 +114,58 @@ public interface Cmd {
     interface StreamProcessor<T, R> {
         void process(@NotNull Ctx<T> ctx) throws Exception;
 
+        /**
+         * Get the future of the stream processor.
+         *
+         * @return the future of the stream processor
+         */
         @NotNull CompletableFuture<R> future();
 
         interface Ctx<T> {
+            /**
+             * Get the command.
+             *
+             * @return the command
+             */
             @NotNull Cmd cmd();
 
+            /**
+             * Get the command.
+             *
+             * @return the command
+             */
             default @NotNull Cmd getCmd() {
                 return cmd();
             }
 
+            /**
+             * Get the standard IO stream.
+             *
+             * @return the standard IO stream
+             */
             @NotNull Stdio stdio();
 
+            /**
+             * Get the standard IO stream.
+             *
+             * @return the standard IO stream
+             */
             default @NotNull Stdio getStdio() {
                 return stdio();
             }
 
+            /**
+             * Get the stream.
+             *
+             * @return the stream
+             */
             @NotNull T stream();
 
+            /**
+             * Get the stream.
+             *
+             * @return the stream
+             */
             default @NotNull T getStream() {
                 return stream();
             }
