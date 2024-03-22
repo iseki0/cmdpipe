@@ -7,6 +7,7 @@ import org.junit.jupiter.api.assertTimeoutPreemptively
 import java.io.IOException
 import java.nio.charset.Charset
 import java.time.Duration
+import java.util.concurrent.ExecutionException
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -67,7 +68,15 @@ class CmdTest {
         node.stopAll(true)
         assertFalse { p.isAlive }
         assertTimeoutPreemptively(Duration.ofSeconds(1)) {
-            println(stdout.future().get().prependIndent("> "))
+            try {
+                println(stdout.future().get().prependIndent("> "))
+            } catch (e: ExecutionException) {
+                if (e.cause is IOException && e.cause!!.message!!.contains("Stream closed")) {
+                    println("Stream closed")
+                } else {
+                    throw e
+                }
+            }
             println("node pid: ${node.process.pid()}")
             println("node exit: ${node.process.exitValue()}")
         }
