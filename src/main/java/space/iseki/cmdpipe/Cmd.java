@@ -169,6 +169,33 @@ public interface Cmd {
             default @NotNull T getStream() {
                 return stream();
             }
+
+            /**
+             * Get the command.
+             *
+             * @return the command
+             */
+            default @NotNull Cmd component1() {
+                return cmd();
+            }
+
+            /**
+             * Get the standard IO stream.
+             *
+             * @return the standard IO stream
+             */
+            default @NotNull Stdio component2() {
+                return stdio();
+            }
+
+            /**
+             * Get the stream.
+             *
+             * @return the stream
+             */
+            default @NotNull T component3() {
+                return stream();
+            }
         }
 
         @FunctionalInterface

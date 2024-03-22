@@ -45,6 +45,9 @@ public abstract interface class space/iseki/cmdpipe/Cmd$StreamProcessor {
 
 public abstract interface class space/iseki/cmdpipe/Cmd$StreamProcessor$Ctx {
 	public abstract fun cmd ()Lspace/iseki/cmdpipe/Cmd;
+	public fun component1 ()Lspace/iseki/cmdpipe/Cmd;
+	public fun component2 ()Lspace/iseki/cmdpipe/Cmd$Stdio;
+	public fun component3 ()Ljava/lang/Object;
 	public fun getCmd ()Lspace/iseki/cmdpipe/Cmd;
 	public fun getStdio ()Lspace/iseki/cmdpipe/Cmd$Stdio;
 	public fun getStream ()Ljava/lang/Object;
