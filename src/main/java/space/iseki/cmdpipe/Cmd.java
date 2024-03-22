@@ -351,26 +351,9 @@ public interface Cmd extends AutoCloseable {
 
                 <T> void startHandler(Stdio stdio, StreamProcessor<T, ?> p, T stream) {
                     Objects.requireNonNull(p);
-                    var cmd = this;
-                    var ctx = new StreamProcessor.Ctx<T>() {
-                        @Override
-                        public @NotNull Cmd cmd() {
-                            return cmd;
-                        }
-
-                        @Override
-                        public @NotNull Stdio stdio() {
-                            return stdio;
-                        }
-
-                        @Override
-                        public @NotNull T stream() {
-                            return stream;
-                        }
-                    };
                     executor.execute(() -> {
                         try {
-                            p.process(ctx);
+                            p.process(new StreamProcessorCtxRecord<>(this, stdio, stream));
                         } catch (Throwable th) {
                             stopAll(true);
                         }
@@ -403,6 +386,9 @@ public interface Cmd extends AutoCloseable {
 
     }
 
+}
+
+record StreamProcessorCtxRecord<T>(Cmd cmd, Cmd.Stdio stdio, T stream) implements Cmd.StreamProcessor.Ctx<T> {
 }
 
 class StreamProcessorImpl<T, R> implements Cmd.StreamProcessor<T, R> {
