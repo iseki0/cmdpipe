@@ -11,19 +11,13 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 
 @SuppressWarnings("unused")
-public interface Cmd extends AutoCloseable {
+public interface Cmd {
     static <R> @NotNull StreamProcessor<@NotNull OutputStream, R> write(@NotNull Cmd.StreamProcessor.H<@NotNull OutputStream, R> h) {
         return new StreamProcessorImpl<>(h);
     }
 
     static <R> @NotNull StreamProcessor<@NotNull InputStream, R> read(@NotNull Cmd.StreamProcessor.H<@NotNull InputStream, R> h) {
         return new StreamProcessorImpl<>(h);
-    }
-
-
-    @Override
-    default void close() {
-        stopAll(true);
     }
 
     /**
