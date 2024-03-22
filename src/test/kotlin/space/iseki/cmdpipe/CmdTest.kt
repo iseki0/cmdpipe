@@ -8,6 +8,7 @@ import java.io.IOException
 import java.nio.charset.Charset
 import java.time.Duration
 import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -66,7 +67,8 @@ class CmdTest {
         val p = node.process
         assertTrue { p.isAlive }
         node.stopAll(true)
-        assertFalse { p.isAlive }
+        assertTrue(p.waitFor(1, TimeUnit.SECONDS))
+        assertFalse(p.isAlive)
         assertTimeoutPreemptively(Duration.ofSeconds(1)) {
             try {
                 println(stdout.future().get().prependIndent("> "))
