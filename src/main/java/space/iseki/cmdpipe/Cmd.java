@@ -4,11 +4,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.*;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 @SuppressWarnings("unused")
 public interface Cmd {
@@ -19,7 +24,7 @@ public interface Cmd {
      * @param <R> the result type
      * @return the stream processor
      */
-    static <R> @NotNull StreamProcessor<@NotNull OutputStream, R> write(@NotNull Cmd.StreamProcessor.H<@NotNull OutputStream, R> h) {
+    static <R> @NotNull StreamProcessor<@NotNull OutputStream, R> output(@NotNull Cmd.StreamProcessor.H<@NotNull OutputStream, R> h) {
         return new StreamProcessorImpl<>(h);
     }
 
@@ -30,7 +35,7 @@ public interface Cmd {
      * @param <R> the result type
      * @return the stream processor
      */
-    static <R> @NotNull StreamProcessor<@NotNull InputStream, R> read(@NotNull Cmd.StreamProcessor.H<@NotNull InputStream, R> h) {
+    static <R> @NotNull StreamProcessor<@NotNull InputStream, R> input(@NotNull Cmd.StreamProcessor.H<@NotNull InputStream, R> h) {
         return new StreamProcessorImpl<>(h);
     }
 
@@ -55,15 +60,11 @@ public interface Cmd {
      *
      * @param force whether to force stop
      */
-    default void stopAll(boolean force) {
-        var ps = getProcesses();
-        getProcesses().forEach(p -> Builder.killTree(p, force));
-        if (force) {
-            Builder.closeIgnoreIOException(ps.get(0).getInputStream());
-            Builder.closeIgnoreIOException(ps.get(ps.size() - 1).getOutputStream());
-            Builder.closeIgnoreIOException(ps.get(ps.size() - 1).getErrorStream());
-        }
-    }
+    void stopAll(boolean force);
+
+    void waitFor() throws InterruptedException;
+
+    boolean waitFor(long timeout, @NotNull TimeUnit unit) throws InterruptedException;
 
 
     /**
@@ -111,8 +112,8 @@ public interface Cmd {
         }
     }
 
-    interface StreamProcessor<T, R> {
-        void process(@NotNull Ctx<T> ctx) throws Exception;
+    sealed interface StreamProcessor<T, R> {
+//        void process(@NotNull Ctx<@NotNull T> ctx) throws Exception;
 
         /**
          * Get the future of the stream processor.
@@ -120,6 +121,8 @@ public interface Cmd {
          * @return the future of the stream processor
          */
         @NotNull CompletableFuture<R> future();
+
+        @NotNull StreamProcessor<@NotNull T, R> lastInit();
 
         interface Ctx<T> {
             /**
@@ -212,9 +215,10 @@ public interface Cmd {
         private byte inheritIO = 0;
         private String[] cmds;
         private File workingDir;
-        private StreamProcessor<InputStream, ?> stdoutProcessor;
-        private StreamProcessor<InputStream, ?> stderrProcessor;
+        private StreamProcessorImpl<InputStream, ?> stdoutProcessor;
+        private StreamProcessorImpl<InputStream, ?> stderrProcessor;
         private ProcessBuilder[] pbs;
+        private boolean autoGrantExecutablePerm = false;
 
         static void closeIgnoreIOException(Closeable closeable) {
             try {
@@ -248,10 +252,74 @@ public interface Cmd {
             }
         }
 
-        private boolean configureRedirect(ProcessBuilder pb, Stdio stdio, StreamProcessor<?, ?> sp) {
+        static boolean isPermissionProblem(IOException e) {
+            return OSNameUtils.IS_UNIX_LIKE && Optional.ofNullable(e.getMessage()).map(s -> s.contains("error=13")).orElse(false);
+        }
+
+        static boolean tryToGrantExecutable(ProcessBuilder[] pbs) {
+            return Arrays.stream(pbs).map(p -> tryToGrantExecutable(p.command().get(0))).reduce(false, (a, b) -> a || b);
+        }
+
+        static boolean tryToGrantExecutable(String name) {
+            try {
+                var p = Path.of(name);
+                if (!Files.isRegularFile(p) || Files.isExecutable(p)) return false;
+                return p.toFile().setExecutable(true);
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        static List<Process> start(ProcessBuilder[] pbs) throws IOException {
+            return pbs.length == 1 ? List.of(pbs[0].start()) : Collections.unmodifiableList(ProcessBuilder.startPipeline(List.of(pbs)));
+        }
+
+        static List<Process> startRetryIfFailed(ProcessBuilder[] pbs) throws IOException {
+            try {
+                return start(pbs);
+            } catch (IOException e) {
+                if (isPermissionProblem(e) && tryToGrantExecutable(pbs)) {
+                    return start(pbs);
+                } else {
+                    throw e;
+                }
+            }
+        }
+
+        private static <T> T[] nonNullInArray(T[] arr) {
+            for (int i = 0; i < arr.length; i++) {
+                int finalI = i;
+                Objects.requireNonNull(arr[i], () -> "Element at index " + finalI + " is null");
+            }
+            return arr;
+        }
+
+        /**
+         * Auto grant executable permission on failure if required.
+         *
+         * @param enable enable it?
+         * @return this, so that the method can be chained
+         * @see File#setExecutable(boolean)
+         */
+        public @NotNull Builder autoGrantExecutableOnFailure(boolean enable) {
+            autoGrantExecutablePerm = enable;
+            return this;
+        }
+
+        /**
+         * Auto grant executable permission on failure if required.
+         *
+         * @return this, so that the method can be chained
+         * @see File#setExecutable(boolean)
+         */
+        public @NotNull Builder autoGrantExecutableOnFailure() {
+            return autoGrantExecutableOnFailure(true);
+        }
+
+        private boolean configureRedirect(ProcessBuilder pb, Stdio stdio, boolean processorSet) {
             boolean inherit = (inheritIO & 1 << stdio.i) > 0;
             var redirect = inherit ? ProcessBuilder.Redirect.INHERIT : switch (stdio) {
-                case STDERR, STDOUT -> sp == null ? ProcessBuilder.Redirect.DISCARD : ProcessBuilder.Redirect.PIPE;
+                case STDERR, STDOUT -> processorSet ? ProcessBuilder.Redirect.PIPE : ProcessBuilder.Redirect.DISCARD;
                 case STDIN -> ProcessBuilder.Redirect.PIPE;
             };
             switch (stdio) {
@@ -361,7 +429,6 @@ public interface Cmd {
             return this;
         }
 
-
         /**
          * Set the command to run and its arguments.
          *
@@ -372,8 +439,7 @@ public interface Cmd {
          */
         public @NotNull Builder cmdline(@NotNull String... cmds) {
             if (cmds.length == 0) throw new IndexOutOfBoundsException("cmds is empty");
-            for (var i : cmds) Objects.requireNonNull(i);
-            this.cmds = Arrays.copyOf(cmds, cmds.length);
+            this.cmds = nonNullInArray(Arrays.copyOf(cmds, cmds.length));
             return this;
         }
 
@@ -388,8 +454,7 @@ public interface Cmd {
         public @NotNull Builder cmdline(@NotNull Collection<@NotNull String> cmds) {
             var a = cmds.toArray(String[]::new);
             if (a.length == 0) throw new IndexOutOfBoundsException("cmds is empty");
-            for (var i : a) Objects.requireNonNull(i);
-            this.cmds = a;
+            this.cmds = nonNullInArray(a);
             return this;
         }
 
@@ -399,11 +464,11 @@ public interface Cmd {
          * @param processor the processor for the command's stdout
          * @return this, so that the method can be chained
          * @throws NullPointerException if processor is null
-         * @see #read(StreamProcessor.H)
+         * @see #input(StreamProcessor.H)
          */
         public @NotNull Builder handleStdout(@NotNull StreamProcessor<InputStream, ?> processor) {
             inheritIO(Stdio.STDOUT, false);
-            this.stdoutProcessor = Objects.requireNonNull(processor);
+            this.stdoutProcessor = (StreamProcessorImpl<InputStream, ?>) Objects.requireNonNull(processor);
             return this;
         }
 
@@ -413,11 +478,11 @@ public interface Cmd {
          * @param processor the processor for the command's stderr
          * @return this, so that the method can be chained
          * @throws NullPointerException if processor is null
-         * @see #read(StreamProcessor.H)
+         * @see #input(StreamProcessor.H)
          */
         public @NotNull Builder handleStderr(@NotNull StreamProcessor<InputStream, ?> processor) {
             inheritIO(Stdio.STDERR, false);
-            this.stderrProcessor = Objects.requireNonNull(processor);
+            this.stderrProcessor = (StreamProcessorImpl<InputStream, ?>) Objects.requireNonNull(processor);
             return this;
         }
 
@@ -425,57 +490,50 @@ public interface Cmd {
          * Start the command.
          *
          * @return the started command
-         * @throws IndexOutOfBoundsException     if neither cmdline nor {@link ProcessBuilder} was set
-         * @throws IOException                   if an I/O error occurs
-         * @throws UnsupportedOperationException if the operating system does not support the creation of processes
+         * @throws IndexOutOfBoundsException                       if neither cmdline nor {@link ProcessBuilder} was set
+         * @throws IOException                                     if an I/O error occurs
+         * @throws UnsupportedOperationException                   if the operating system does not support the creation of processes
+         * @throws IllegalStateException                           if any processor has been re-used(which is not allowed), such as {@link Builder#handleStderr(StreamProcessor)}, {@link Builder#handleStdout(StreamProcessor)}
+         * @throws java.util.concurrent.RejectedExecutionException if the processor task cannot be scheduled for execution, see also: {@link Executor#execute(Runnable)}
          * @see ProcessBuilder#start()
          */
         public @NotNull Cmd start() throws IOException {
-            var pbs = getPbs();
-            var lastPb = pbs[pbs.length - 1];
-            var firstPb = pbs[0];
-            var stdoutStart = configureRedirect(lastPb, Stdio.STDOUT, stdoutProcessor);
-            var stderrStart = configureRedirect(lastPb, Stdio.STDERR, stderrProcessor);
-            for (ProcessBuilder pb : pbs) {
-                if (!envs.isEmpty()) {
-                    pb.environment().putAll(envs);
-                }
-                if (workingDir != null) {
-                    pb.directory(workingDir);
-                }
-            }
-            var processes = pbs.length == 1 ? List.of(pbs[0].start()) : ProcessBuilder.startPipeline(List.of(pbs));
-            var cmd = new Cmd() {
-
-                @Override
-                public @NotNull List<@NotNull Process> getProcesses() {
-                    return processes;
-                }
-
-                <T> void startHandler(Stdio stdio, StreamProcessor<T, ?> p, T stream) {
-                    Objects.requireNonNull(p);
-                    executor.execute(() -> {
-                        try {
-                            p.process(new StreamProcessorCtxRecord<>(this, stdio, stream));
-                        } catch (Throwable th) {
-                            stopAll(true);
-                        }
-                    });
-                }
-            };
+            CmdImpl cmd = null;
             try {
+                var pbs = getPbs();
+                var lastPb = pbs[pbs.length - 1];
+                var firstPb = pbs[0];
+                var stdoutStart = configureRedirect(lastPb, Stdio.STDOUT, stdoutProcessor != null);
+                var stderrStart = configureRedirect(lastPb, Stdio.STDERR, stderrProcessor != null);
+                for (ProcessBuilder pb : pbs) configureEnvAndDir(pb);
+                var processes = autoGrantExecutablePerm ? startRetryIfFailed(pbs) : start(pbs);
+                cmd = new CmdImpl(processes);
                 var lastProcess = processes.get(processes.size() - 1);
                 if (stdoutStart) {
-                    cmd.startHandler(Stdio.STDOUT, stdoutProcessor, Objects.requireNonNull(lastProcess.getInputStream(), "stdoutProcessor is set but getInputStream() returns null"));
+                    cmd.startHandler(executor, Stdio.STDOUT, stdoutProcessor, lastProcess.getInputStream());
                 }
                 if (stderrStart) {
-                    cmd.startHandler(Stdio.STDERR, stderrProcessor, Objects.requireNonNull(lastProcess.getErrorStream(), "stderrProcessor is set but getErrorStream() returns null"));
+                    cmd.startHandler(executor, Stdio.STDERR, stderrProcessor, lastProcess.getErrorStream());
                 }
+                return cmd;
             } catch (Throwable th) {
-                cmd.stopAll(true);
+                var spThrows = new RuntimeException("command start failed", th);
+                Optional.ofNullable(stdoutProcessor).ifPresent(c -> c.markFailed(spThrows));
+                Optional.ofNullable(stderrProcessor).ifPresent(c -> c.markFailed(spThrows));
+                if (cmd != null) {
+                    cmd.stopAll(true);
+                }
                 throw th;
             }
-            return cmd;
+        }
+
+        private void configureEnvAndDir(ProcessBuilder pb) {
+            if (!envs.isEmpty()) {
+                pb.environment().putAll(envs);
+            }
+            if (workingDir != null) {
+                pb.directory(workingDir);
+            }
         }
 
         private ProcessBuilder[] getPbs() {
@@ -491,29 +549,132 @@ public interface Cmd {
 
 }
 
+class CmdImpl implements Cmd {
+    private final List<Process> processes;
+
+    CmdImpl(List<Process> processes) {
+        this.processes = processes;
+    }
+
+    @Override
+    public @NotNull List<@NotNull Process> getProcesses() {
+        return processes;
+    }
+
+    <T> void startHandler(Executor executor, Stdio stdio, StreamProcessorImpl<T, ?> p, T stream) {
+        Objects.requireNonNull(stream, () -> "stream is null for " + stdio);
+        p.process(executor, new StreamProcessorCtxRecord<>(this, stdio, stream), th -> stopAll(true));
+    }
+
+    @Override
+    public void stopAll(boolean force) {
+        var ps = getProcesses();
+        getProcesses().forEach(p -> Builder.killTree(p, force));
+        if (force) {
+            Optional.ofNullable(ps.get(0).getInputStream()).ifPresent(Builder::closeIgnoreIOException);
+            Optional.ofNullable(ps.get(ps.size() - 1).getOutputStream()).ifPresent(Builder::closeIgnoreIOException);
+            Optional.ofNullable(ps.get(ps.size() - 1).getErrorStream()).ifPresent(Builder::closeIgnoreIOException);
+        }
+    }
+
+    @Override
+    public void waitFor() throws InterruptedException {
+        for (Process process : processes) {
+            process.waitFor();
+        }
+    }
+
+    @Override
+    public boolean waitFor(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
+        if (processes.size() == 1) return processes.get(0).waitFor(timeout, unit);
+        long now = System.currentTimeMillis();
+        long end = now + unit.toMillis(timeout);
+        if (end < now) return false;
+        for (Process p : processes) {
+            long left = end - System.currentTimeMillis();
+            if (left <= 0) return false;
+            if (!p.waitFor(left, TimeUnit.MILLISECONDS)) return false;
+        }
+        return true;
+    }
+}
+
 record StreamProcessorCtxRecord<T>(Cmd cmd, Cmd.Stdio stdio, T stream) implements Cmd.StreamProcessor.Ctx<T> {
 }
 
-class StreamProcessorImpl<T, R> implements Cmd.StreamProcessor<T, R> {
+final class StreamProcessorImpl<T, R> implements Cmd.StreamProcessor<T, R> {
+    private static final VarHandle FUTURE;
+    private static final VarHandle ALREADY_USED;
+
+    static {
+        try {
+            var lookup = MethodHandles.lookup();
+            FUTURE = lookup.findVarHandle(StreamProcessorImpl.class, "future", CompletableFuture.class).withInvokeExactBehavior();
+            ALREADY_USED = lookup.findVarHandle(StreamProcessorImpl.class, "alreadyUsed", boolean.class).withInvokeExactBehavior();
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private final H<T, R> h;
-    private final CompletableFuture<R> future = new CompletableFuture<>();
+    @SuppressWarnings({"unused", "FieldMayBeFinal"})
+    private boolean alreadyUsed = false;
+    @SuppressWarnings("unused")
+    private volatile CompletableFuture<R> future;
 
     public StreamProcessorImpl(H<T, R> h) {
         this.h = h;
     }
 
-    @Override
-    public void process(@NotNull Ctx<T> ctx) throws Exception {
-        try {
-            future.complete(h.handle(ctx));
-        } catch (Throwable th) {
-            future.completeExceptionally(th);
-            throw th;
+    public void process(Executor executor, Ctx<T> ctx, Consumer<Throwable> failCallback) {
+        if (!ALREADY_USED.compareAndSet(this, false, true)) {
+            throw new IllegalStateException("processor already been used, " + ctx.stdio());
         }
+        CompletableFuture<R> future = new CompletableFuture<>();
+        //noinspection unchecked;
+        CompletableFuture<R> old = (CompletableFuture<R>) FUTURE.compareAndExchange(this, (CompletableFuture<R>) null, future);
+        if (old != null) {
+            future = old;
+        }
+        CompletableFuture<R> finalFuture = future;
+        executor.execute(() -> {
+            try {
+                finalFuture.complete(h.handle(ctx));
+            } catch (Throwable th) {
+                finalFuture.completeExceptionally(th);
+                failCallback.accept(th);
+            }
+        });
+    }
+
+    public void markFailed(Throwable th) {
+        Optional.ofNullable((CompletableFuture<?>) FUTURE.compareAndExchange(this, (CompletableFuture<?>) null, CompletableFuture.failedFuture(th))).ifPresent(f -> f.completeExceptionally(th));
     }
 
     @Override
     public @NotNull CompletableFuture<R> future() {
-        return future;
+        //noinspection unchecked
+        return Optional.ofNullable((CompletableFuture<R>) FUTURE.getAcquire(this)).orElseThrow(() -> new IllegalStateException("processor not ready"));
+    }
+
+    @Override
+    public @NotNull Cmd.StreamProcessor<@NotNull T, R> lastInit() {
+        FUTURE.compareAndSet(this, (CompletableFuture<?>) null, new CompletableFuture<>());
+        return this;
+    }
+}
+
+class OSNameUtils {
+    private static final String OS_NAME = System.getProperty("os.name", "");
+    private static final boolean IS_LINUX = match("Linux");
+    private static final boolean IS_MAC = match("Mac");
+    private static final boolean IS_BSD_LIKE = match("FreeBSD") || match("NetBSD") || match("OpenBSD");
+    public static final boolean IS_UNIX_LIKE = IS_LINUX || IS_MAC || IS_BSD_LIKE;
+
+    static boolean match(final String prefix) {
+        if (OS_NAME == null) {
+            return false;
+        }
+        return OS_NAME.startsWith(prefix);
     }
 }

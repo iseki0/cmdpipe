@@ -9,20 +9,24 @@ import java.nio.charset.Charset
 import java.time.Duration
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import kotlin.io.path.deleteExisting
+import kotlin.io.path.pathString
+import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class CmdTest {
-    private val isWindows = System.getProperty("os.name").startsWith("Windows")
+    private val isWindows = !OSNameUtils.IS_UNIX_LIKE
     private val cmdError = if (isWindows) listOf("cmd", "/c", "dir /xxxx") else listOf("ls", "--xxxx")
     private val cmd = if (isWindows) listOf("cmd", "/c", "dir") else listOf("ls")
 
     @Test
-    fun testErrorCmd() {
-        val stdout = Cmd.read { ctx ->
+    fun testRunErrorCmd() {
+        val stdout = Cmd.input { ctx ->
             ctx.stream.bufferedReader(Charset.defaultCharset()).readText().prependIndent("> ")
         }
-        val stderr = Cmd.read { ctx ->
+        val stderr = Cmd.input { ctx ->
             ctx.stream.bufferedReader(Charset.defaultCharset()).readText().prependIndent("stderr> ")
         }
         Cmd.Builder().cmdline(cmdError).handleStdout(stdout).handleStderr(stderr).start()
@@ -32,11 +36,11 @@ class CmdTest {
     }
 
     @Test
-    fun test2() {
-        val stdout = Cmd.read { ctx ->
+    fun testRunCmd() {
+        val stdout = Cmd.input { ctx ->
             ctx.stream.bufferedReader(Charset.defaultCharset()).readText().prependIndent("> ")
-        }
-        val stderr = Cmd.read { ctx ->
+        }.lastInit()
+        val stderr = Cmd.input { ctx ->
             ctx.stream.bufferedReader(Charset.defaultCharset()).readText().prependIndent("stderr> ")
         }
         Cmd.Builder().cmdline(cmd).handleStdout(stdout).handleStderr(stderr).start()
@@ -45,15 +49,40 @@ class CmdTest {
     }
 
     @Test
-    fun testThrows1() {
-        val e = assertThrows<IOException> { Cmd.Builder().cmdline("something_does_not_exist").start() }
+    fun testThrowCmdNotFound() {
+        val e = assertThrows<IOException> { Cmd.Builder().cmdline("something_does_not_exist").start().stopAll(true) }
         println(e.message)
         assertTrue { e.message!!.contains("error=2") }
     }
 
     @Test
+    fun testNotExecutable() {
+        Assumptions.assumeTrue(OSNameUtils.IS_UNIX_LIKE)
+        val f = kotlin.io.path.createTempFile(suffix = ".sh")
+        try {
+            val e = assertThrows<IOException> { Cmd.Builder().cmdline(f.pathString).start().stopAll(true) }
+            assertContains(e.message!!, "error=13")
+            val cmd = Cmd.Builder().cmdline(f.pathString).autoGrantExecutableOnFailure().start()
+            assertTrue(cmd.waitFor(1, TimeUnit.SECONDS))
+            assertEquals(0, cmd.process.exitValue())
+        } finally {
+            f.deleteExisting()
+        }
+    }
+
+    @Test
+    fun testReUseProcessor() {
+        val p = Cmd.input { it.stream.bufferedReader(Charset.defaultCharset()).readText() }
+        Cmd.Builder().cmdline(cmd).handleStdout(p).start().stopAll(true)
+        val e =
+            assertThrows<IllegalStateException> { Cmd.Builder().cmdline(cmd).handleStdout(p).start() }.also(::println)
+        assertContains(e.message!!, "STDOUT")
+        assertContains(e.message!!, "used")
+    }
+
+    @Test
     fun testRunNodeKill() {
-        val stdout = Cmd.read {
+        val stdout = Cmd.input {
             it.stream.bufferedReader(Charset.defaultCharset()).readText()
         }
         val node = try {
