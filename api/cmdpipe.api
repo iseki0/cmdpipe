@@ -5,15 +5,20 @@ public final class space/iseki/cmdpipe/-Cmdline {
 }
 
 public abstract interface class space/iseki/cmdpipe/Cmd {
+	public abstract fun backgroundWaitTimeoutKill (JLjava/util/concurrent/TimeUnit;)Ljava/util/concurrent/CompletableFuture;
 	public fun getProcess ()Ljava/lang/Process;
 	public abstract fun getProcesses ()Ljava/util/List;
-	public static fun read (Lspace/iseki/cmdpipe/Cmd$StreamProcessor$H;)Lspace/iseki/cmdpipe/Cmd$StreamProcessor;
-	public fun stopAll (Z)V
-	public static fun write (Lspace/iseki/cmdpipe/Cmd$StreamProcessor$H;)Lspace/iseki/cmdpipe/Cmd$StreamProcessor;
+	public static fun input (Lspace/iseki/cmdpipe/Cmd$StreamProcessor$H;)Lspace/iseki/cmdpipe/Cmd$StreamProcessor;
+	public static fun output (Lspace/iseki/cmdpipe/Cmd$StreamProcessor$H;)Lspace/iseki/cmdpipe/Cmd$StreamProcessor;
+	public abstract fun stopAll (Z)V
+	public abstract fun waitFor ()I
+	public abstract fun waitFor (JLjava/util/concurrent/TimeUnit;)Z
 }
 
 public class space/iseki/cmdpipe/Cmd$Builder {
 	public fun <init> ()V
+	public fun autoGrantExecutableOnFailure ()Lspace/iseki/cmdpipe/Cmd$Builder;
+	public fun autoGrantExecutableOnFailure (Z)Lspace/iseki/cmdpipe/Cmd$Builder;
 	public fun cmdline (Ljava/util/Collection;)Lspace/iseki/cmdpipe/Cmd$Builder;
 	public fun cmdline ([Ljava/lang/String;)Lspace/iseki/cmdpipe/Cmd$Builder;
 	public fun env (Ljava/lang/String;Ljava/lang/String;)Lspace/iseki/cmdpipe/Cmd$Builder;
@@ -40,7 +45,7 @@ public final class space/iseki/cmdpipe/Cmd$Stdio : java/lang/Enum {
 
 public abstract interface class space/iseki/cmdpipe/Cmd$StreamProcessor {
 	public abstract fun future ()Ljava/util/concurrent/CompletableFuture;
-	public abstract fun process (Lspace/iseki/cmdpipe/Cmd$StreamProcessor$Ctx;)V
+	public abstract fun lastInit ()Lspace/iseki/cmdpipe/Cmd$StreamProcessor;
 }
 
 public abstract interface class space/iseki/cmdpipe/Cmd$StreamProcessor$Ctx {

@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.deleteExisting
 import kotlin.io.path.pathString
+import kotlin.system.measureTimeMillis
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -81,6 +82,23 @@ class CmdTest {
     }
 
     @Test
+    fun testRunNodeTimeoutKill() {
+        val node = Cmd.Builder().cmdline("node").start()
+        try {
+            val f = node.backgroundWaitTimeoutKill(100, TimeUnit.MILLISECONDS)
+            val t = measureTimeMillis {
+                assertTimeoutPreemptively(Duration.ofSeconds(1)) {
+                    assertFalse(f.get())
+                }
+            }
+            println(t)
+            assertTrue(t > 100)
+        } finally {
+            if (node.process.isAlive) node.stopAll(true)
+        }
+    }
+
+    @Test
     fun testRunNodeKill() {
         val stdout = Cmd.input {
             it.stream.bufferedReader(Charset.defaultCharset()).readText()
@@ -94,7 +112,7 @@ class CmdTest {
             throw e
         }
         val p = node.process
-        assertTrue { p.isAlive }
+        assertTrue(p.isAlive)
         node.stopAll(true)
         assertTrue(p.waitFor(1, TimeUnit.SECONDS))
         assertFalse(p.isAlive)

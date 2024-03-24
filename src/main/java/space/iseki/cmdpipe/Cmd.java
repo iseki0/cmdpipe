@@ -62,9 +62,30 @@ public interface Cmd {
      */
     void stopAll(boolean force);
 
-    void waitFor() throws InterruptedException;
+    /**
+     * Like {@link Process#waitFor()}, but for all processes.
+     *
+     * @return the exit code of the first process
+     * @throws InterruptedException if the current thread is interrupted by another thread while it is waiting, then the wait is ended and an {@link InterruptedException} is thrown.
+     * @see Process#waitFor()
+     */
+    @SuppressWarnings("UnusedReturnValue")
+    int waitFor() throws InterruptedException;
 
+
+    /**
+     * Like {@link Process#waitFor(long, TimeUnit)}, but for all processes.
+     *
+     * @param timeout the maximum time to wait
+     * @param unit    the time unit of the timeout argument
+     * @return true if all processes have exited and false if the waiting time elapsed before all processes have exited
+     * @throws InterruptedException if the current thread is interrupted by another thread while it is waiting, then the wait is ended and an {@link InterruptedException} is thrown.
+     * @throws NullPointerException if unit is null
+     * @see Process#waitFor(long, TimeUnit)
+     */
     boolean waitFor(long timeout, @NotNull TimeUnit unit) throws InterruptedException;
+
+    @NotNull CompletableFuture<@NotNull Boolean> backgroundWaitTimeoutKill(long timeout, TimeUnit unit);
 
 
     /**
@@ -499,6 +520,8 @@ public interface Cmd {
          */
         public @NotNull Cmd start() throws IOException {
             CmdImpl cmd = null;
+            var stdoutProcessor = this.stdoutProcessor;
+            var stderrProcessor = this.stderrProcessor;
             try {
                 var pbs = getPbs();
                 var lastPb = pbs[pbs.length - 1];
@@ -507,21 +530,29 @@ public interface Cmd {
                 var stderrStart = configureRedirect(lastPb, Stdio.STDERR, stderrProcessor != null);
                 for (ProcessBuilder pb : pbs) configureEnvAndDir(pb);
                 var processes = autoGrantExecutablePerm ? startRetryIfFailed(pbs) : start(pbs);
-                cmd = new CmdImpl(processes);
+                cmd = new CmdImpl(processes, executor);
                 var lastProcess = processes.get(processes.size() - 1);
                 if (stdoutStart) {
-                    cmd.startHandler(executor, Stdio.STDOUT, stdoutProcessor, lastProcess.getInputStream());
+                    assert stdoutProcessor != null;
+                    cmd.startHandler(Stdio.STDOUT, stdoutProcessor, lastProcess.getInputStream());
                 }
                 if (stderrStart) {
-                    cmd.startHandler(executor, Stdio.STDERR, stderrProcessor, lastProcess.getErrorStream());
+                    assert stderrProcessor != null;
+                    cmd.startHandler(Stdio.STDERR, stderrProcessor, lastProcess.getErrorStream());
                 }
                 return cmd;
             } catch (Throwable th) {
                 var spThrows = new RuntimeException("command start failed", th);
-                Optional.ofNullable(stdoutProcessor).ifPresent(c -> c.markFailed(spThrows));
-                Optional.ofNullable(stderrProcessor).ifPresent(c -> c.markFailed(spThrows));
+                if (stdoutProcessor != null) stdoutProcessor.markFailed(spThrows);
+                if (stderrProcessor != null) stderrProcessor.markFailed(spThrows);
+                // keep behavior consistent with ProcessBuilder.startPipeline()
                 if (cmd != null) {
                     cmd.stopAll(true);
+                    try {
+                        cmd.waitFor();
+                    } catch (InterruptedException e) {
+                        th.addSuppressed(e);
+                    }
                 }
                 throw th;
             }
@@ -551,9 +582,11 @@ public interface Cmd {
 
 class CmdImpl implements Cmd {
     private final List<Process> processes;
+    private final Executor executor;
 
-    CmdImpl(List<Process> processes) {
+    CmdImpl(List<Process> processes, Executor executor) {
         this.processes = processes;
+        this.executor = executor;
     }
 
     @Override
@@ -561,41 +594,67 @@ class CmdImpl implements Cmd {
         return processes;
     }
 
-    <T> void startHandler(Executor executor, Stdio stdio, StreamProcessorImpl<T, ?> p, T stream) {
+    <T> void startHandler(Stdio stdio, StreamProcessorImpl<T, ?> p, T stream) {
         Objects.requireNonNull(stream, () -> "stream is null for " + stdio);
         p.process(executor, new StreamProcessorCtxRecord<>(this, stdio, stream), th -> stopAll(true));
     }
 
     @Override
     public void stopAll(boolean force) {
-        var ps = getProcesses();
+        killProcesses(force);
+        if (force) closeAllIO();
+    }
+
+    private void killProcesses(boolean force) {
         getProcesses().forEach(p -> Builder.killTree(p, force));
-        if (force) {
-            Optional.ofNullable(ps.get(0).getInputStream()).ifPresent(Builder::closeIgnoreIOException);
-            Optional.ofNullable(ps.get(ps.size() - 1).getOutputStream()).ifPresent(Builder::closeIgnoreIOException);
-            Optional.ofNullable(ps.get(ps.size() - 1).getErrorStream()).ifPresent(Builder::closeIgnoreIOException);
-        }
+    }
+
+    private void closeAllIO() {
+        var ps = getProcesses();
+        Optional.ofNullable(ps.get(0).getInputStream()).ifPresent(Builder::closeIgnoreIOException);
+        Optional.ofNullable(ps.get(ps.size() - 1).getOutputStream()).ifPresent(Builder::closeIgnoreIOException);
+        Optional.ofNullable(ps.get(ps.size() - 1).getErrorStream()).ifPresent(Builder::closeIgnoreIOException);
     }
 
     @Override
-    public void waitFor() throws InterruptedException {
-        for (Process process : processes) {
-            process.waitFor();
+    public int waitFor() throws InterruptedException {
+        var exitCode = 0;
+        for (int i = 0; i < processes.size(); i++) {
+            Process process = processes.get(i);
+            exitCode = i == 0 ? process.waitFor() : exitCode;
         }
+        return exitCode;
     }
 
     @Override
     public boolean waitFor(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
         if (processes.size() == 1) return processes.get(0).waitFor(timeout, unit);
-        long now = System.currentTimeMillis();
-        long end = now + unit.toMillis(timeout);
-        if (end < now) return false;
+        long end = System.currentTimeMillis() + unit.toMillis(timeout);
         for (Process p : processes) {
             long left = end - System.currentTimeMillis();
             if (left <= 0) return false;
             if (!p.waitFor(left, TimeUnit.MILLISECONDS)) return false;
         }
         return true;
+    }
+
+    @Override
+    public @NotNull CompletableFuture<@NotNull Boolean> backgroundWaitTimeoutKill(long timeout, TimeUnit unit) {
+        var f = new CompletableFuture<Boolean>();
+        executor.execute(() -> {
+            try {
+                if (!waitFor(timeout, unit)) {
+                    killProcesses(false);
+                    f.complete(false);
+                } else {
+                    f.complete(true);
+                }
+            } catch (Throwable th) {
+                f.completeExceptionally(th);
+                stopAll(true);
+            }
+        });
+        return f;
     }
 }
 
