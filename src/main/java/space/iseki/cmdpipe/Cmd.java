@@ -241,37 +241,6 @@ public interface Cmd {
         private ProcessBuilder[] pbs;
         private boolean autoGrantExecutablePerm = false;
 
-        static void closeIgnoreIOException(Closeable closeable) {
-            try {
-                closeable.close();
-            } catch (IOException ignored) {
-            }
-        }
-
-        static void killTree(Process process, boolean force) {
-            try {
-                process.descendants().forEach(p -> killTree(p, force));
-            } catch (UnsupportedOperationException ignored) {
-            }
-            if (force) {
-                process.destroyForcibly();
-            } else {
-                process.destroy();
-            }
-        }
-
-        static void killTree(ProcessHandle ph, boolean force) {
-            ph.descendants().forEach(p -> killTree(p, force));
-            kill(ph, force);
-        }
-
-        static void kill(ProcessHandle ph, boolean force) {
-            if (force) {
-                ph.destroyForcibly();
-            } else {
-                ph.destroy();
-            }
-        }
 
         static boolean isPermissionProblem(IOException e) {
             return OSNameUtils.IS_UNIX_LIKE && Optional.ofNullable(e.getMessage()).map(s -> s.contains("error=13")).orElse(false);
@@ -589,6 +558,49 @@ class CmdImpl implements Cmd {
         this.executor = executor;
     }
 
+    private static void closeIgnoreIOException(Closeable closeable) {
+        try {
+            closeable.close();
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void killTree(Process process, boolean force) {
+        try {
+            process.descendants().forEach(p -> killTree(p, force));
+        } catch (UnsupportedOperationException ignored) {
+        }
+        if (force) {
+            process.destroyForcibly();
+        } else {
+            process.destroy();
+        }
+    }
+
+    private static void killTree(ProcessHandle ph, boolean force) {
+        ph.descendants().forEach(p -> killTree(p, force));
+        kill(ph, force);
+    }
+
+    private static void kill(ProcessHandle ph, boolean force) {
+        if (force) {
+            ph.destroyForcibly();
+        } else {
+            ph.destroy();
+        }
+    }
+
+    private void killProcesses(boolean force) {
+        getProcesses().forEach(p -> killTree(p, force));
+    }
+
+    private void closeAllIO() {
+        var ps = getProcesses();
+        Optional.ofNullable(ps.get(0).getInputStream()).ifPresent(CmdImpl::closeIgnoreIOException);
+        Optional.ofNullable(ps.get(ps.size() - 1).getOutputStream()).ifPresent(CmdImpl::closeIgnoreIOException);
+        Optional.ofNullable(ps.get(ps.size() - 1).getErrorStream()).ifPresent(CmdImpl::closeIgnoreIOException);
+    }
+
     @Override
     public @NotNull List<@NotNull Process> getProcesses() {
         return processes;
@@ -605,16 +617,6 @@ class CmdImpl implements Cmd {
         if (force) closeAllIO();
     }
 
-    private void killProcesses(boolean force) {
-        getProcesses().forEach(p -> Builder.killTree(p, force));
-    }
-
-    private void closeAllIO() {
-        var ps = getProcesses();
-        Optional.ofNullable(ps.get(0).getInputStream()).ifPresent(Builder::closeIgnoreIOException);
-        Optional.ofNullable(ps.get(ps.size() - 1).getOutputStream()).ifPresent(Builder::closeIgnoreIOException);
-        Optional.ofNullable(ps.get(ps.size() - 1).getErrorStream()).ifPresent(Builder::closeIgnoreIOException);
-    }
 
     @Override
     public int waitFor() throws InterruptedException {
