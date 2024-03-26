@@ -4,6 +4,7 @@ plugins {
     kotlin("plugin.serialization") version "1.9.23"
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.2"
     id("org.jetbrains.kotlinx.kover") version "0.7.2"
+    id("org.graalvm.buildtools.native") version "0.10.1"
     signing
     `maven-publish`
 }
@@ -34,10 +35,7 @@ dependencies {
     testImplementation(libs.slf4j.api)
     testImplementation(libs.logback.classic)
     testImplementation(libs.kotlinx.coroutine.core)
-}
-
-fun JavaToolchainSpec.configure() {
-    languageVersion.set(JavaLanguageVersion.of(17))
+    compileOnly("org.graalvm.sdk:graal-sdk:24.0.0")
 }
 
 tasks.withType<AbstractArchiveTask>().configureEach {
@@ -48,7 +46,6 @@ tasks.withType<AbstractArchiveTask>().configureEach {
 tasks.withType<JavaCompile>().configureEach {
     sourceCompatibility = "17"
     targetCompatibility = "17"
-    javaCompiler.set(javaToolchains.compilerFor { configure() })
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
@@ -57,7 +54,6 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     kotlinOptions.freeCompilerArgs += "-Xlambdas=indy"
     kotlinOptions.freeCompilerArgs += "-Xjvm-default=all-compatibility"
     kotlinOptions.jvmTarget = "17"
-    kotlinJavaToolchain.toolchain.use(javaToolchains.launcherFor { configure() })
 }
 
 tasks.test {
@@ -117,5 +113,27 @@ afterEvaluate {
         // reference: https://docs.gradle.org/current/userguide/signing_plugin.html#example_configure_the_gnupgsignatory
         useGpgCmd()
         publishing.publications.forEach { sign(it) }
+    }
+}
+
+graalvmNative {
+    toolchainDetection.set(true)
+    binaries {
+        named("test") {
+            javaLauncher.set(javaToolchains.launcherFor {
+                languageVersion.set(JavaLanguageVersion.of(22))
+                vendor.set(JvmVendorSpec.matching("Oracle Corporation"))
+            })
+            buildArgs.add("-Ob")
+            buildArgs.add("-march=native")
+            buildArgs.add("-H:+BuildReport")
+            buildArgs.add("-H:+AddAllCharsets")
+            buildArgs.add("--enable-sbom")
+        }
+    }
+    binaries.all {
+        buildArgs.add("--verbose")
+        buildArgs.add("-H:Log=registerResource:5")
+        buildArgs.add("-H:+UnlockExperimentalVMOptions")
     }
 }
