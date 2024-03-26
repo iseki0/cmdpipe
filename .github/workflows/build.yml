@@ -44,3 +44,7 @@ jobs:
       - name: Native Test
         run: ./gradlew nativeTest
 
+      - name: Print all files on failure
+        if: failure()
+        run: find
+
