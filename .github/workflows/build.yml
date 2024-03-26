@@ -32,7 +32,7 @@ jobs:
           build-scan-terms-of-service-agree: "yes"
 
       - name: Build
-        run: ./gradlew bulid
+        run: ./gradlew build
 
       - name: Upload build reports
         uses: actions/upload-artifact@v3
