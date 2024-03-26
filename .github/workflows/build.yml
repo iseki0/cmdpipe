@@ -24,14 +24,23 @@ jobs:
           server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
           settings-path: ${{ github.workspace }} # location for the settings.xml file
 
-      - name: Build with Gradle
-        uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
         with:
-          arguments: build
+          build-scan-publish: true
+          build-scan-terms-of-service-url: "https://gradle.com/terms-of-service"
+          build-scan-terms-of-service-agree: "yes"
 
-      - name: Graalvm native-image test
-        uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
+      - name: Build
+        run: ./gradlew bulid
+
+      - name: Upload build reports
+        uses: actions/upload-artifact@v3
+        if: always()
         with:
-          arguments: nativeTest
-#      - name: Run snapshot action
-#        uses: mikepenz/gradle-dependency-submission@v0.8.6
+          name: build-reports
+          path: build/reports/
+
+      - name: Native Test
+        run: ./gradlew nativeTest
+
