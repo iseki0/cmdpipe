@@ -1,7 +1,7 @@
 plugins {
     `java-library`
-    kotlin("jvm") version "1.9.0"
-    kotlin("plugin.serialization") version "1.9.0"
+    kotlin("jvm") version "1.9.23"
+    kotlin("plugin.serialization") version "1.9.23"
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.13.2"
     id("org.jetbrains.kotlinx.kover") version "0.7.2"
     signing
