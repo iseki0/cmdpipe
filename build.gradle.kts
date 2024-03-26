@@ -1,3 +1,5 @@
+import org.graalvm.buildtools.gradle.dsl.GraalVMExtension
+
 plugins {
     `java-library`
     kotlin("jvm") version "1.9.23"
@@ -137,3 +139,16 @@ graalvmNative {
         buildArgs.add("-H:+UnlockExperimentalVMOptions")
     }
 }
+
+tasks.nativeTestCompile {
+    doFirst {
+        val d =
+            project.extensions.getByType(GraalVMExtension::class).binaries["test"].asCompileOptions().javaLauncher.get().executablePath.asFile.parentFile
+        val ni = File(d, "native-image")
+        if (ni.exists()) {
+            ni.setExecutable(true)
+        }
+    }
+}
+
+
