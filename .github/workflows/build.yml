@@ -48,5 +48,5 @@ jobs:
         if: failure()
         run: | 
           find
-          find /home/runner/.gradle/jdks/graalvm_community-22-amd64-linux/graalvm-community-openjdk-22+36.1/bin
+          ls -alh /home/runner/.gradle/jdks/graalvm_community-22-amd64-linux/graalvm-community-openjdk-22+36.1/bin
 
