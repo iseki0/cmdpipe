@@ -127,16 +127,12 @@ graalvmNative {
                 vendor.set(JvmVendorSpec.GRAAL_VM)
             })
             buildArgs.add("-Ob")
+            buildArgs.add("-H:+UnlockExperimentalVMOptions")
             buildArgs.add("-march=native")
-            buildArgs.add("-H:+BuildReport")
             buildArgs.add("-H:+AddAllCharsets")
-            buildArgs.add("--enable-sbom")
+            buildArgs.add("--verbose")
+            buildArgs.add("-H:Log=registerResource:5")
         }
-    }
-    binaries.all {
-        buildArgs.add("--verbose")
-        buildArgs.add("-H:Log=registerResource:5")
-        buildArgs.add("-H:+UnlockExperimentalVMOptions")
     }
 }
 
