@@ -30,6 +30,7 @@ jobs:
           build-scan-publish: true
           build-scan-terms-of-service-url: "https://gradle.com/terms-of-service"
           build-scan-terms-of-service-agree: "yes"
+          cache-read-only: false
 
       - name: Build
         run: ./gradlew build
