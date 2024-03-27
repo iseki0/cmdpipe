@@ -1,4 +1,10 @@
 import org.graalvm.buildtools.gradle.dsl.GraalVMExtension
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import kotlin.io.path.createLinkPointingTo
+import kotlin.io.path.deleteExisting
+import kotlin.io.path.fileSize
+import kotlin.io.path.isRegularFile
 
 plugins {
     `java-library`
@@ -136,14 +142,26 @@ graalvmNative {
     }
 }
 
+fun fixSymlink(target: Path, expectedSrc: Path) {
+    if (!expectedSrc.isRegularFile(LinkOption.NOFOLLOW_LINKS)) {
+        logger.info("fixSymlink: expected is not regular, skip (expected: {})", expectedSrc)
+        return
+    }
+    if (!target.isRegularFile(LinkOption.NOFOLLOW_LINKS) || target.fileSize() > 0) {
+        logger.info("fixSymlink: target is not regular or the file size > 0, skip (target: {})", target)
+        return
+    }
+    logger.warn("fixSymlink: {} -> {}", target, expectedSrc)
+    target.deleteExisting()
+    target.createLinkPointingTo(expectedSrc)
+}
+
 tasks.nativeTestCompile {
     doFirst {
-        val d =
-            project.extensions.getByType(GraalVMExtension::class).binaries["test"].asCompileOptions().javaLauncher.get().executablePath.asFile.parentFile
-        val ni = File(d, "native-image")
-        if (ni.exists()) {
-            ni.setExecutable(true)
-        }
+        val testCompileOpt = project.extensions.getByType(GraalVMExtension::class).binaries["test"].asCompileOptions()
+        val binPath = testCompileOpt.javaLauncher.get().executablePath.asFile.toPath().parent
+        val svmBinPath = binPath.resolve("../lib/svm/bin")
+        fixSymlink(binPath.resolve("native-image"), svmBinPath.resolve("native-image"))
     }
 }
 
