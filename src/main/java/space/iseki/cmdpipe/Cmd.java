@@ -550,8 +550,20 @@ public interface Cmd {
 }
 
 class CmdImpl implements Cmd {
+    private static final VarHandle BG_WAIT_FUTURE;
+
+    static {
+        try {
+            BG_WAIT_FUTURE = MethodHandles.lookup().findVarHandle(CmdImpl.class, "bgWaitFuture", CompletableFuture.class).withInvokeExactBehavior();
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private final List<Process> processes;
     private final Executor executor;
+    @SuppressWarnings("unused")
+    private volatile CompletableFuture<Boolean> bgWaitFuture;
 
     CmdImpl(List<Process> processes, Executor executor) {
         this.processes = processes;
@@ -643,19 +655,27 @@ class CmdImpl implements Cmd {
     @Override
     public @NotNull CompletableFuture<@NotNull Boolean> backgroundWaitTimeoutKill(long timeout, TimeUnit unit) {
         var f = new CompletableFuture<Boolean>();
-        executor.execute(() -> {
-            try {
-                if (!waitFor(timeout, unit)) {
-                    killProcesses(false);
-                    f.complete(false);
-                } else {
-                    f.complete(true);
+        //noinspection unchecked
+        var old = (CompletableFuture<Boolean>) BG_WAIT_FUTURE.compareAndExchange(this, (CompletableFuture<Boolean>) null, f);
+        if (old != null) return old;
+        try {
+            executor.execute(() -> {
+                try {
+                    if (!waitFor(timeout, unit)) {
+                        killProcesses(false);
+                        f.complete(false);
+                    } else {
+                        f.complete(true);
+                    }
+                } catch (Throwable th) {
+                    f.completeExceptionally(th);
+                    stopAll(true);
                 }
-            } catch (Throwable th) {
-                f.completeExceptionally(th);
-                stopAll(true);
-            }
-        });
+            });
+        } catch (Throwable th) {
+            f.completeExceptionally(th);
+            throw th;
+        }
         return f;
     }
 }

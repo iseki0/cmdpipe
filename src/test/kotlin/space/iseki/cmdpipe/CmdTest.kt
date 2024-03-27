@@ -12,10 +12,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.io.path.deleteExisting
 import kotlin.io.path.pathString
 import kotlin.system.measureTimeMillis
-import kotlin.test.assertContains
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class CmdTest {
     private val isWindows = !OSNameUtils.IS_UNIX_LIKE
@@ -86,6 +83,7 @@ class CmdTest {
         val node = Cmd.Builder().cmdline("node").start()
         try {
             val f = node.backgroundWaitTimeoutKill(100, TimeUnit.MILLISECONDS)
+            assertSame(f, node.backgroundWaitTimeoutKill(100, TimeUnit.MILLISECONDS))
             val t = measureTimeMillis {
                 assertTimeoutPreemptively(Duration.ofSeconds(1)) {
                     assertFalse(f.get())
