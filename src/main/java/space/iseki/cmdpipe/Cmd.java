@@ -746,16 +746,16 @@ final class StreamProcessorImpl<T, R> implements Cmd.StreamProcessor<T, R> {
 }
 
 class OSNameUtils {
-    private static final String OS_NAME = System.getProperty("os.name", "");
-    private static final boolean IS_LINUX = match("Linux");
-    private static final boolean IS_MAC = match("Mac");
-    private static final boolean IS_BSD_LIKE = match("FreeBSD") || match("NetBSD") || match("OpenBSD");
-    public static final boolean IS_UNIX_LIKE = IS_LINUX || IS_MAC || IS_BSD_LIKE;
+    static final String OS_NAME = System.getProperty("os.name", "");
+    static final boolean IS_LINUX = match("Linux");
+    static final boolean IS_MAC = match("Mac");
+    static final boolean IS_BSD_LIKE = match("FreeBSD") || match("NetBSD") || match("OpenBSD");
+    static final boolean IS_UNIX_LIKE = IS_LINUX || IS_MAC || IS_BSD_LIKE;
 
     static boolean match(final String prefix) {
-        if (OS_NAME == null) {
+        if (OS_NAME == null || OS_NAME.length() < prefix.length()) {
             return false;
         }
-        return OS_NAME.startsWith(prefix);
+        return OS_NAME.regionMatches(true, 0, prefix, 0, prefix.length());
     }
 }
