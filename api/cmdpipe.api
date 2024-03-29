@@ -24,6 +24,7 @@ public class space/iseki/cmdpipe/Cmd$Builder {
 	public fun env (Ljava/lang/String;Ljava/lang/String;)Lspace/iseki/cmdpipe/Cmd$Builder;
 	public fun env (Ljava/lang/String;Ljava/lang/String;Z)Lspace/iseki/cmdpipe/Cmd$Builder;
 	public fun handleStderr (Lspace/iseki/cmdpipe/Cmd$StreamProcessor;)Lspace/iseki/cmdpipe/Cmd$Builder;
+	public fun handleStdin (Lspace/iseki/cmdpipe/Cmd$StreamProcessor;)Lspace/iseki/cmdpipe/Cmd$Builder;
 	public fun handleStdout (Lspace/iseki/cmdpipe/Cmd$StreamProcessor;)Lspace/iseki/cmdpipe/Cmd$Builder;
 	public fun inheritIO (Lspace/iseki/cmdpipe/Cmd$Stdio;)Lspace/iseki/cmdpipe/Cmd$Builder;
 	public fun inheritIO (Lspace/iseki/cmdpipe/Cmd$Stdio;Z)Lspace/iseki/cmdpipe/Cmd$Builder;
