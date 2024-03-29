@@ -238,6 +238,7 @@ public interface Cmd {
         private File workingDir;
         private StreamProcessorImpl<InputStream, ?> stdoutProcessor;
         private StreamProcessorImpl<InputStream, ?> stderrProcessor;
+        private StreamProcessorImpl<OutputStream, ?> stdinProcessor;
         private ProcessBuilder[] pbs;
         private boolean autoGrantExecutablePerm = false;
 
@@ -306,8 +307,12 @@ public interface Cmd {
             return autoGrantExecutableOnFailure(true);
         }
 
-        private boolean configureRedirect(ProcessBuilder pb, Stdio stdio, boolean processorSet) {
-            boolean inherit = (inheritIO & 1 << stdio.i) > 0;
+        private boolean isInheritIO(Stdio stdio) {
+            return (inheritIO & 1 << stdio.i) > 0;
+        }
+
+        private void configureRedirect(ProcessBuilder pb, Stdio stdio, boolean processorSet) {
+            boolean inherit = isInheritIO(stdio);
             var redirect = inherit ? ProcessBuilder.Redirect.INHERIT : switch (stdio) {
                 case STDERR, STDOUT -> processorSet ? ProcessBuilder.Redirect.PIPE : ProcessBuilder.Redirect.DISCARD;
                 case STDIN -> ProcessBuilder.Redirect.PIPE;
@@ -317,7 +322,6 @@ public interface Cmd {
                 case STDOUT -> pb.redirectOutput(redirect);
                 case STDERR -> pb.redirectError(redirect);
             }
-            return redirect == ProcessBuilder.Redirect.PIPE;
         }
 
         /**
@@ -476,6 +480,12 @@ public interface Cmd {
             return this;
         }
 
+        public @NotNull Builder handleStdin(@NotNull StreamProcessor<OutputStream, ?> processor) {
+            inheritIO(Stdio.STDIN, false);
+            this.stdinProcessor = (StreamProcessorImpl<OutputStream, ?>) Objects.requireNonNull(processor);
+            return this;
+        }
+
         /**
          * Start the command.
          *
@@ -491,29 +501,35 @@ public interface Cmd {
             CmdImpl cmd = null;
             var stdoutProcessor = this.stdoutProcessor;
             var stderrProcessor = this.stderrProcessor;
+            var stdinProcessor = this.stdinProcessor;
             try {
                 var pbs = getPbs();
                 var lastPb = pbs[pbs.length - 1];
                 var firstPb = pbs[0];
-                var stdoutStart = configureRedirect(lastPb, Stdio.STDOUT, stdoutProcessor != null);
-                var stderrStart = configureRedirect(lastPb, Stdio.STDERR, stderrProcessor != null);
+                configureRedirect(firstPb, Stdio.STDIN, stdinProcessor != null);
+                configureRedirect(lastPb, Stdio.STDOUT, stdoutProcessor != null);
+                configureRedirect(lastPb, Stdio.STDERR, stderrProcessor != null);
                 for (ProcessBuilder pb : pbs) configureEnvAndDir(pb);
                 var processes = autoGrantExecutablePerm ? startRetryIfFailed(pbs) : start(pbs);
                 cmd = new CmdImpl(processes, executor);
                 var lastProcess = processes.get(processes.size() - 1);
-                if (stdoutStart) {
-                    assert stdoutProcessor != null;
+                if (stdoutProcessor != null) {
                     cmd.startHandler(Stdio.STDOUT, stdoutProcessor, lastProcess.getInputStream());
                 }
-                if (stderrStart) {
-                    assert stderrProcessor != null;
+                if (stderrProcessor != null) {
                     cmd.startHandler(Stdio.STDERR, stderrProcessor, lastProcess.getErrorStream());
+                }
+                if (stdinProcessor != null) {
+                    cmd.startHandler(Stdio.STDIN, stdinProcessor, lastProcess.getOutputStream());
+                } else if (!isInheritIO(Stdio.STDIN)) {
+                    processes.get(0).getOutputStream().close();
                 }
                 return cmd;
             } catch (Throwable th) {
                 var spThrows = new RuntimeException("command start failed", th);
                 if (stdoutProcessor != null) stdoutProcessor.markFailed(spThrows);
                 if (stderrProcessor != null) stderrProcessor.markFailed(spThrows);
+                if (stdinProcessor != null) stdinProcessor.markFailed(spThrows);
                 // keep behavior consistent with ProcessBuilder.startPipeline()
                 if (cmd != null) {
                     cmd.stopAll(true);

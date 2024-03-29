@@ -1,9 +1,7 @@
 package space.iseki.cmdpipe
 
-import org.junit.jupiter.api.Assumptions
+import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
-import org.junit.jupiter.api.assertTimeoutPreemptively
 import java.io.IOException
 import java.nio.charset.Charset
 import java.time.Duration
@@ -80,7 +78,8 @@ class CmdTest {
 
     @Test
     fun testRunNodeTimeoutKill() {
-        val node = Cmd.Builder().cmdline("node").start()
+        val stdin = Cmd.output { Thread.sleep(8) }
+        val node = startSkipTestIfNotFound(Cmd.Builder().cmdline("node").handleStdin(stdin))
         try {
             val f = node.backgroundWaitTimeoutKill(100, TimeUnit.MILLISECONDS)
             assertSame(f, node.backgroundWaitTimeoutKill(100, TimeUnit.MILLISECONDS))
@@ -88,12 +87,19 @@ class CmdTest {
                 assertTimeoutPreemptively(Duration.ofSeconds(1)) {
                     assertFalse(f.get())
                 }
+                assertTimeout(Duration.ofSeconds(1)) {
+                    try {
+                        stdin.future().get()
+                    } catch (ignored: InterruptedException) {
+                    }
+                }
             }
             println(t)
             assertTrue(t > 100)
         } finally {
             if (node.process.isAlive) node.stopAll(true)
         }
+
     }
 
     @Test
@@ -101,14 +107,7 @@ class CmdTest {
         val stdout = Cmd.input {
             it.stream.bufferedReader(Charset.defaultCharset()).readText()
         }
-        val node = try {
-            Cmd.Builder().cmdline("node").handleStdout(stdout).start()
-        } catch (e: IOException) {
-            if (e.message!!.contains("error=2")) {
-                Assumptions.assumeTrue(false, "node not found")
-            }
-            throw e
-        }
+        val node = startSkipTestIfNotFound(Cmd.Builder().cmdline("node").handleStdout(stdout))
         val p = node.process
         assertTrue(p.isAlive)
         node.stopAll(true)
@@ -129,4 +128,31 @@ class CmdTest {
         }
     }
 
+    @Test
+    fun testNodeInteractive() {
+        val stdin = Cmd.output { (_, _, stream) ->
+            stream.use { it.write("console.log(12345+54321);".encodeToByteArray()) }
+        }
+        val stdout = Cmd.input { (_, _, s) ->
+            s.readAllBytes().decodeToString()
+        }
+        val stderr = Cmd.input { (_, _, s) ->
+            s.readAllBytes().decodeToString()
+        }
+        val cmd = Cmd.Builder().cmdline("node").handleStdin(stdin).handleStdout(stdout).handleStderr(stderr)
+        val f = startSkipTestIfNotFound(cmd).backgroundWaitTimeoutKill(3, TimeUnit.SECONDS)
+        assertTrue(f.get(), "node not exit")
+        assertContains(stdout.future().get(), "66666")
+        assertTrue(stderr.future().get().isEmpty())
+    }
+
+
+    private fun startSkipTestIfNotFound(cmd: Cmd.Builder) = try {
+        cmd.start()
+    } catch (e: IOException) {
+        if (e.message!!.contains("error=2")) {
+            Assumptions.assumeTrue(false, "executable file not found")
+        }
+        throw e
+    }
 }
