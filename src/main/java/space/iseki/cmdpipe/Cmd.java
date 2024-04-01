@@ -425,20 +425,25 @@ public interface Cmd {
 
         /**
          * Set the command to run and its arguments.
+         * <p>
+         * And the process builders will be cleared if it was set before.
          *
          * @param cmds the command and its arguments
          * @return this, so that the method can be chained
          * @throws NullPointerException      if any of the elements in cmds is null
          * @throws IndexOutOfBoundsException if cmds is empty
          */
-        public @NotNull Builder cmdline(@NotNull String... cmds) {
+        public @NotNull Builder cmdline(@NotNull String @NotNull ... cmds) {
             if (cmds.length == 0) throw new IndexOutOfBoundsException("cmds is empty");
             this.cmds = nonNullInArray(Arrays.copyOf(cmds, cmds.length));
+            this.pbs = null;
             return this;
         }
 
         /**
          * Set the command to run and its arguments.
+         * <p>
+         * And the process builders will be cleared if it was set before.
          *
          * @param cmds the command and its arguments
          * @return this, so that the method can be chained
@@ -449,8 +454,45 @@ public interface Cmd {
             var a = cmds.toArray(String[]::new);
             if (a.length == 0) throw new IndexOutOfBoundsException("cmds is empty");
             this.cmds = nonNullInArray(a);
+            this.pbs = null;
             return this;
         }
+
+        /**
+         * Set the process builder for the command.
+         * <p>
+         * And the process builders be cleared if it was set before.
+         *
+         * @param pbs the process builder for the command
+         * @return this, so that the method can be chained
+         * @throws NullPointerException      if pbs or any of the elements in pbs is null
+         * @throws IndexOutOfBoundsException if pbs is empty
+         */
+        public @NotNull Builder useProcessBuilder(@NotNull ProcessBuilder @NotNull ... pbs) {
+            if (pbs.length == 0) throw new IndexOutOfBoundsException("pbs is empty");
+            this.pbs = nonNullInArray(pbs);
+            this.cmds = null;
+            return this;
+        }
+
+        /**
+         * Set the process builder for the command.
+         * <p>
+         * And the process builders will be cleared if it was set before.
+         *
+         * @param pbs the process builder for the command
+         * @return this, so that the method can be chained
+         * @throws NullPointerException      if pbs or any of the elements in pbs is null
+         * @throws IndexOutOfBoundsException if pbs is empty
+         */
+        public @NotNull Builder useProcessBuilder(@NotNull Collection<@NotNull ProcessBuilder> pbs) {
+            var pb = pbs.toArray(ProcessBuilder[]::new);
+            if (pb.length == 0) throw new IndexOutOfBoundsException("pbs is empty");
+            this.pbs = nonNullInArray(pb);
+            this.cmds = null;
+            return this;
+        }
+
 
         /**
          * Set the processor for the command's stdout.
