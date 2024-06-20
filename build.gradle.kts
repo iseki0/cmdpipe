@@ -124,3 +124,16 @@ afterEvaluate {
         publishing.publications.forEach { sign(it) }
     }
 }
+
+project.tasks.named("compileJava", JavaCompile::class.java) {
+    options.compilerArgumentProviders.add(CommandLineArgumentProvider {
+        // Provide compiled Kotlin classes to javac – needed for Java/Kotlin mixed sources to work
+        listOf("--patch-module", "space.iseki.cmdpipe=${sourceSets["main"].output.asPath}")
+    })
+}
+//project.tasks.named("javadoc", Javadoc::class.java) {
+//    options {
+//        this as CoreJavadocOptions
+//        addStringOption("-patch-module", "$module=${sourceSets["main"].output.asPath}")
+//    }
+//}

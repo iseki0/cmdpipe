@@ -1,4 +1,6 @@
-# cmdpipe
+# cmdpipe(Deprecated)
+
+### Deprecated, don't use
 
 [![Maven Central](https://img.shields.io/maven-central/v/space.iseki.cmdpipe/cmdpipe)](https://mvnrepository.com/artifact/space.iseki.cmdpipe/cmdpipe)
 
