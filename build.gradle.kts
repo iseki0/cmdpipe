@@ -11,7 +11,7 @@ plugins {
 
 allprojects {
     group = "space.iseki.cmdpipe"
-    version = "0.6.0-SNAPSHOT"
+    version = "0.6.1-SNAPSHOT"
 
     repositories {
         mavenCentral()
